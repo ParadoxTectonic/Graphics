@@ -212,7 +212,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     // Define macro for a better understanding of the loop
     // TODO: this code is now much harder to understand...
 #define EVALUATE_BSDF_ENV_SKY(envLightData, TYPE, type) \
-        IndirectLighting lighting = EvaluateBSDF_Env(context, V, posInput, preLightData, envLightData, bsdfData, envLightData.influenceShapeType, MERGE_NAME(GPUIMAGEBASEDLIGHTINGTYPE_, TYPE), MERGE_NAME(type, HierarchyWeight)); \
+        IndirectLighting lighting = EvaluateBSDF_Env(context, V, posInput, preLightData, envLightData, bsdfData, envLightData.influenceShapeType, MERGE_NAME(GPUIMAGEBASEDLIGHTINGTYPE_, TYPE), MERGE_NAME(type, HierarchyWeight), diffuseHierarchyWeight); \
         AccumulateIndirectLighting(lighting, aggregateLighting);
 
 // Environment cubemap test lightlayers, sky don't test it
@@ -223,6 +223,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     {
         float reflectionHierarchyWeight = 0.0; // Max: 1.0
         float refractionHierarchyWeight = _EnableSSRefraction ? 0.0 : 1.0; // Max: 1.0
+        float diffuseHierarchyWeight = 0.0;
 
         uint envLightStart, envLightCount;
 
@@ -300,7 +301,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
                 if (s_envLightIdx >= v_envLightIdx)
                 {
                     v_envLightListOffset++;
-                    if (reflectionHierarchyWeight < 1.0)
+                    if (reflectionHierarchyWeight < 1.0 || diffuseHierarchyWeight < 1.0)
                     {
                         EVALUATE_BSDF_ENV(s_envLightData, REFLECTION, reflection);
                     }
@@ -328,7 +329,7 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
             EnvLightData envLightSky = InitSkyEnvLightData(0);
 
             // Only apply the sky if we haven't yet accumulated enough IBL lighting.
-            if (reflectionHierarchyWeight < 1.0)
+            if (reflectionHierarchyWeight < 1.0 || diffuseHierarchyWeight < 1.0)
             {
                 EVALUATE_BSDF_ENV_SKY(envLightSky, REFLECTION, reflection);
             }

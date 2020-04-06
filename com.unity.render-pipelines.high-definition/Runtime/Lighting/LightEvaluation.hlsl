@@ -5,6 +5,35 @@
 // use #define LIGHT_EVALUATION_NO_SHADOWS to disable evaluation of shadow including contact shadow (but not micro shadow)
 // use #define OVERRIDE_EVALUATE_ENV_INTERSECTION to provide a new version of EvaluateLight_EnvIntersection
 
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LocalVisibility.hlsl"
+
+float3 DirectionToAreaLight(float4x3 L, float3 F, float4x3 Lws)
+{
+    // L[0..3] : LL UL UR LR
+
+    float3  origin = L[0];
+    float3  right = L[3] - origin;
+    float3  up = L[1] - origin;
+
+    float3  normal = normalize(cross(right, up));
+
+    // Compute intersection of irradiance vector with the area light plane
+    float   hitDistance = dot(origin, normal) / dot(F, normal);
+    float3  hitPosition = hitDistance * normal;
+    hitPosition -= origin;
+
+    float   recSqLengthRight = 1.0 / dot(right, right);
+    float   upRightMixing = dot(up, right);
+    float3  ortho = up - upRightMixing * right * recSqLengthRight;
+
+    float2 uv;
+    uv.y = dot(hitPosition, ortho) / dot(ortho, ortho);
+    uv.x = (dot(hitPosition, right) - upRightMixing * uv.y) * recSqLengthRight;
+    uv = saturate(uv);
+
+    return normalize(Lws[0] + uv.x*(Lws[3] - Lws[0]) + uv.y*(Lws[1] - Lws[0]));
+}
+
 // Samples the area light's associated cookie
 //  cookieIndex, the index of the cookie texture in the Texture2DArray
 //  L, the 4 local-space corners of the area light polygon transformed by the LTC M^-1 matrix
@@ -238,7 +267,7 @@ float4 EvaluateLight_Directional(LightLoopContext lightLoopContext, PositionInpu
 }
 
 DirectionalShadowType EvaluateShadow_Directional(LightLoopContext lightLoopContext, PositionInputs posInput,
-                                 DirectionalLightData light, BuiltinData builtinData, float3 N)
+                                 DirectionalLightData light, BuiltinData builtinData, float3 N, LocalVisibility localVisibility)
 {
 #ifndef LIGHT_EVALUATION_NO_SHADOWS
     DirectionalShadowType shadow = 1.0;
@@ -255,7 +284,9 @@ DirectionalShadowType EvaluateShadow_Directional(LightLoopContext lightLoopConte
     {
         shadow = lightLoopContext.shadowValue;
 
-    #ifdef SHADOWS_SHADOWMASK
+        shadowMask = min(shadowMask, EvaluateLocalVisibilityDirac(localVisibility, -light.forward));
+
+    #if 1//def SHADOWS_SHADOWMASK
         // TODO: Optimize this code! Currently it is a bit like brute force to get the last transistion and fade to shadow mask, but there is
         // certainly more efficient to do
         // We reuse the transition from the cascade system to fade between shadow mask at max distance
@@ -296,6 +327,12 @@ DirectionalShadowType EvaluateShadow_Directional(LightLoopContext lightLoopConte
 #else // LIGHT_EVALUATION_NO_SHADOWS
     return 1.0;
 #endif
+}
+
+DirectionalShadowType EvaluateShadow_Directional(LightLoopContext lightLoopContext, PositionInputs posInput,
+    DirectionalLightData light, BuiltinData builtinData, float3 N)
+{
+    return EvaluateShadow_Directional(lightLoopContext, posInput, light, builtinData, N, FullLocalVisibility());
 }
 
 //-----------------------------------------------------------------------------
@@ -438,9 +475,8 @@ float4 EvaluateLight_Punctual(LightLoopContext lightLoopContext, PositionInputs 
     return color;
 }
 
-// distances = {d, d^2, 1/d, d_proj}, where d_proj = dot(lightToSample, light.forward).
 float EvaluateShadow_Punctual(LightLoopContext lightLoopContext, PositionInputs posInput,
-                              LightData light, BuiltinData builtinData, float3 N, float3 L, float4 distances)
+                              LightData light, BuiltinData builtinData, float3 N, float3 L, float4 distances, LocalVisibility localVisibility)
 {
 #ifndef LIGHT_EVALUATION_NO_SHADOWS
     float shadow     = 1.0;
@@ -478,6 +514,10 @@ float EvaluateShadow_Punctual(LightLoopContext lightLoopContext, PositionInputs 
 
         shadow = lerp(shadowMask, shadow, light.shadowDimmer);
     }
+    //else
+    {
+        shadow = min(shadow, EvaluateLocalVisibilityDiracSharp(localVisibility, L));
+    }
 
     // Transparents have no contact shadow information
 #if !defined(_SURFACE_TYPE_TRANSPARENT) && !defined(LIGHT_EVALUATION_NO_CONTACT_SHADOWS)
@@ -492,6 +532,13 @@ float EvaluateShadow_Punctual(LightLoopContext lightLoopContext, PositionInputs 
 #else // LIGHT_EVALUATION_NO_SHADOWS
     return 1.0;
 #endif
+}
+
+// distances = {d, d^2, 1/d, d_proj}, where d_proj = dot(lightToSample, light.forward).
+float EvaluateShadow_Punctual(LightLoopContext lightLoopContext, PositionInputs posInput,
+                              LightData light, BuiltinData builtinData, float3 N, float3 L, float4 distances)
+{
+    return EvaluateShadow_Punctual(lightLoopContext, posInput, light, builtinData, N, L, distances, FullLocalVisibility());
 }
 
 //-----------------------------------------------------------------------------

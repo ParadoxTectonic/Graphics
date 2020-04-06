@@ -4357,7 +4357,7 @@ namespace UnityEngine.Rendering.HighDefinition
             RenderAfterPostProcess(cullResults, hdCamera, renderContext, cmd);
 
             // Set the depth buffer to the main one to avoid missing out on transparent depth for post process.
-            cmd.SetGlobalTexture(HDShaderIDs._CameraDepthTexture, m_SharedRTManager.GetDepthStencilBuffer());
+            cmd.SetGlobalTexture(HDShaderIDs._CameraDepthTexture, m_SharedRTManager.GetDepthTexture());
 
             // Post-processes output straight to the backbuffer
             m_PostProcessSystem.Render(

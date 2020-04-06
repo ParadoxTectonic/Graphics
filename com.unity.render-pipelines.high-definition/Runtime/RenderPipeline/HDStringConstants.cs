@@ -146,6 +146,7 @@ namespace UnityEngine.Rendering.HighDefinition
         public static readonly int _CookieCubeTextures = Shader.PropertyToID("_CookieCubeTextures");
         public static readonly int _PlanarAtlasData = Shader.PropertyToID("_PlanarAtlasData");
         public static readonly int _EnvCubemapTextures = Shader.PropertyToID("_EnvCubemapTextures");
+        public static readonly int _EnvSphericalHarmonicsTexture = Shader.PropertyToID("_EnvSphericalHarmonicsTexture");
         public static readonly int _EnvSliceSize = Shader.PropertyToID("_EnvSliceSize");
         public static readonly int _Env2DTextures = Shader.PropertyToID("_Env2DTextures");
         public static readonly int _Env2DCaptureVP = Shader.PropertyToID("_Env2DCaptureVP");
@@ -194,6 +195,8 @@ namespace UnityEngine.Rendering.HighDefinition
         public static readonly int _AmbientOcclusionTexture = Shader.PropertyToID("_AmbientOcclusionTexture");
         public static readonly int _AmbientOcclusionTextureRW = Shader.PropertyToID("_AmbientOcclusionTextureRW");
         public static readonly int _MultiAmbientOcclusionTexture = Shader.PropertyToID("_MultiAmbientOcclusionTexture");
+        public static readonly int _AmbientOcclusionSH1Texture = Shader.PropertyToID("_AmbientOcclusionSH1Texture");
+        public static readonly int _AmbientOcclusionSH5Texture = Shader.PropertyToID("_AmbientOcclusionSH5Texture");
         public static readonly int _DebugMipMapMode = Shader.PropertyToID("_DebugMipMapMode");
         public static readonly int _DebugMipMapModeTerrainTexture = Shader.PropertyToID("_DebugMipMapModeTerrainTexture");
         public static readonly int _DebugSingleShadowIndex = Shader.PropertyToID("_DebugSingleShadowIndex");
@@ -883,9 +886,13 @@ namespace UnityEngine.Rendering.HighDefinition
         public static readonly int _AOParams4                      = Shader.PropertyToID("_AOParams4");
         public static readonly int _FirstTwoDepthMipOffsets        = Shader.PropertyToID("_FirstTwoDepthMipOffsets");
         public static readonly int _OcclusionTexture               = Shader.PropertyToID("_OcclusionTexture");
+        public static readonly int _OcclusionHarmonics1Texture     = Shader.PropertyToID("_OcclusionHarmonics1Texture");
+        public static readonly int _OcclusionHarmonics5Texture     = Shader.PropertyToID("_OcclusionHarmonics5Texture");
         public static readonly int _BentNormalsTexture             = Shader.PropertyToID("_BentNormalsTexture");
         public static readonly int _AOPackedData                   = Shader.PropertyToID("_AOPackedData");
         public static readonly int _AOPackedHistory                = Shader.PropertyToID("_AOPackedHistory");
+        public static readonly int _AORawHarmonics1                = Shader.PropertyToID("_AORawHarmonics1");
+        public static readonly int _AORawHarmonics5                = Shader.PropertyToID("_AORawHarmonics5");
         public static readonly int _AODepthToViewParams            = Shader.PropertyToID("_AODepthToViewParams");
         public static readonly int _AOPackedBlurred                = Shader.PropertyToID("_AOPackedBlurred");
         public static readonly int _AOOutputHistory                = Shader.PropertyToID("_AOOutputHistory");

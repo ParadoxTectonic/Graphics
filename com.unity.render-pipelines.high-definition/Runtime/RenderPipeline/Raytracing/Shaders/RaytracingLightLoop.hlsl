@@ -96,7 +96,8 @@ void LightLoop( float3 V, PositionInputs posInput, PreLightData preLightData, BS
     // Define macro for a better understanding of the loop
     // TODO: this code is now much harder to understand...
 #define EVALUATE_BSDF_ENV_SKY(envLightData, TYPE, type) \
-    IndirectLighting lighting = EvaluateBSDF_Env(context, V, posInput, preLightData, envLightData, bsdfData, envLightData.influenceShapeType, MERGE_NAME(GPUIMAGEBASEDLIGHTINGTYPE_, TYPE), MERGE_NAME(type, HierarchyWeight)); \
+    float unusedDiffuseHierarchyWeight = 0.0; \
+    IndirectLighting lighting = EvaluateBSDF_Env(context, V, posInput, preLightData, envLightData, bsdfData, envLightData.influenceShapeType, MERGE_NAME(GPUIMAGEBASEDLIGHTINGTYPE_, TYPE), MERGE_NAME(type, HierarchyWeight), unusedDiffuseHierarchyWeight); \
     AccumulateIndirectLighting(lighting, aggregateLighting);
 
 // Environment cubemap test lightlayers, sky don't test it

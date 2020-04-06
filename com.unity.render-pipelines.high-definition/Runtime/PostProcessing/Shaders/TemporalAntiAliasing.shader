@@ -48,11 +48,86 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
             return output;
         }
 
+        float3 ClipToCylinder(float3 v, float3 halfExtent)
+        {
+            v *= rcp(halfExtent);
+            float3 v2 = v*v;
+            v *= halfExtent*rsqrt(Max3(1., v2.x, v2.y + v2.z));
+            //v *= halfExtent*rsqrt(max(1., float3(v2.x, v2.yy + v2.zz)));
+            return v;
+        }
+
+        float Hmax(float3 v)
+        {
+            return Max3(v.x, v.y, v.z);
+        }
+
+        float3 ClipToBox(float3 v, float3 halfExtent)
+        {
+            v *= rcp(halfExtent);
+            v *= halfExtent * rcp(max(1., Hmax(abs(v))));
+            return v;
+        }
+
+        float3 MapColor(float3 x)
+        {
+        #if HDR_MAPUNMAP
+            float3 y = mul(float3x3(0.25, 0.5, 0.25, -0.25, 0.5, -0.25, 0.5, 0, -0.5), x);  // RGB -> YCoCg
+            y.rgb *= rcp(0.25 + y.r);
+            return y;
+        #else
+            return x;
+        #endif
+        }
+
+        float3 UnmapColor(float3 x)
+        {
+        #if HDR_MAPUNMAP
+            x.rgb *= 0.25*rcp(1. - x.r);
+            return mul(float3x3(1., -1., 1., 1., 1., 0., 1., -1., -1.), x);  // YCoCg -> RGB
+        #else
+            return x;
+        #endif
+        }
+
+        float NeighborhoodStatisticsWeight(int i, int j)
+        {
+            static const float cWeights[] = { 16./196., 24./196., 36./196. };
+            return cWeights[(i == 0) + (j == 0)];
+        }
+
+        void GatherNeighborhoodStatistics(TEXTURE2D_X(tex), float2 positionSS, out CTYPE mean, out CTYPE sigma)
+        {
+            mean = 0.;
+            sigma = 0.;
+            [unroll] for (int i = -1; i <= +1; i++)
+            {
+                [unroll] for (int j = -1; j <= +1; j++)
+                {
+                    CTYPE c = LOAD_TEXTURE2D_X(tex, positionSS + int2(i, j)).CTYPE_SWIZZLE;
+                    c.rgb = MapColor(c.rgb);
+                    float w = NeighborhoodStatisticsWeight(i, j);
+                    mean += c*w;
+                    sigma += c*c*w;
+                }
+            }
+            sigma = sqrt(max(sigma - mean*mean, 0.000001));
+        }
+
+        bool2 IsInUnitBox(float2 v)
+        {
+            return v == saturate(v);
+        }
+
+        CTYPE SmoothClamp(CTYPE x, CTYPE a, CTYPE b)
+        {
+            return lerp(a, b, smoothstep(a, b, x));
+        }
+
         void FragTAA(Varyings input, out CTYPE outColor : SV_Target0)
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-            float sharpenStrength = _TaaFrameInfo.x;
             float2 jitter = _TaaJitterStrength.zw;
 
     #if defined(ORTHOGRAPHIC)
@@ -68,49 +143,40 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
 
             float2 uv = input.texcoord - jitter;
 
+
             CTYPE color = Fetch4(_InputTexture, uv, 0.0, _RTHandleScale.xy).CTYPE_SWIZZLE;
-            CTYPE history = Fetch4(_InputHistoryTexture, input.texcoord - motionVector, 0.0, _RTHandleScaleHistory.zw).CTYPE_SWIZZLE;
+            CTYPE history = FetchLanczos(_InputHistoryTexture, input.texcoord - motionVector, 0.0, _RTHandleScaleHistory.zw).CTYPE_SWIZZLE;
+            //history.rgb = max(history.rgb, 0.);
 
-            CTYPE topLeft = Fetch4(_InputTexture, uv, -RADIUS, _RTHandleScale.xy).CTYPE_SWIZZLE;
-            CTYPE bottomRight = Fetch4(_InputTexture, uv, RADIUS, _RTHandleScale.xy).CTYPE_SWIZZLE;
-
-            CTYPE corners = 4.0 * (topLeft + bottomRight) - 2.0 * color;
-
-            // Sharpen output
     #if SHARPEN
-            CTYPE topRight = Fetch4(_InputTexture, uv, float2(RADIUS, -RADIUS), _RTHandleScale.xy).CTYPE_SWIZZLE;
-            CTYPE bottomLeft = Fetch4(_InputTexture, uv, float2(-RADIUS, RADIUS), _RTHandleScale.xy).CTYPE_SWIZZLE;
-            CTYPE blur = (topLeft + topRight + bottomLeft + bottomRight) * 0.25;
-            color += (color - blur) * sharpenStrength;
+            //float sharpenStrength = _TaaFrameInfo.x;
+
+            CTYPE lowPass = 0;
+            lowPass += 0.25*Fetch4(_InputTexture, uv, float2(-0.5, -0.5), _RTHandleScale.xy).CTYPE_SWIZZLE;
+            lowPass += 0.25*Fetch4(_InputTexture, uv, float2(+0.5, -0.5), _RTHandleScale.xy).CTYPE_SWIZZLE;
+            lowPass += 0.25*Fetch4(_InputTexture, uv, float2(-0.5, +0.5), _RTHandleScale.xy).CTYPE_SWIZZLE;
+            lowPass += 0.25*Fetch4(_InputTexture, uv, float2(+0.5, +0.5), _RTHandleScale.xy).CTYPE_SWIZZLE;
+
+            color += SmoothClamp(2.*(color - lowPass),
+                -0.1*color,
+                +0.1*color);
     #endif
 
             color.xyz = clamp(color.xyz, 0.0, CLAMP_MAX);
 
-            float3 average = Map((corners.xyz + color.xyz) / 7.0);
-
-            topLeft.xyz = Map(topLeft.xyz);
-            bottomRight.xyz = Map(bottomRight.xyz);
-            color.xyz = Map(color.xyz);
-
-            float colorLuma = Luminance(color.xyz);
-            float averageLuma = Luminance(average);
-            float nudge = lerp(4.0, 0.25, saturate(motionVecLength * 100.0)) * abs(averageLuma - colorLuma);
-
-            CTYPE minimum = min(bottomRight, topLeft) - nudge;
-            CTYPE maximum = max(topLeft, bottomRight) + nudge;
-
-            history.xyz = Map(history.xyz);
+            color.xyz = MapColor(color.xyz);
+            history.xyz = MapColor(history.xyz);
 
             // Clip history samples
-    #if CLIP_AABB
-            history = ClipToAABB(history, minimum, maximum);
-    #else
-            history = clamp(history, minimum, maximum);
-    #endif
+            CTYPE mean, sigma;
+            GatherNeighborhoodStatistics(_InputTexture, input.positionCS.xy, mean, sigma);
+            float allowedDeviation = lerp(COLOR_DEVIATION_ALLOWED_MAX, COLOR_DEVIATION_ALLOWED_MIN, saturate(motionVecLength*100.0));
+            history.rgb = mean.rgb + ClipToCylinder(history.rgb - mean.rgb, sigma.rgb*allowedDeviation);
 
             // Blend color & history
             // Feedback weight from unbiased luminance diff (Timothy Lottes)
-            float historyLuma = Luminance(history.xyz);
+            float colorLuma = color.x;
+            float historyLuma = history.x;
             float diff = abs(colorLuma - historyLuma) / Max3(colorLuma, historyLuma, 0.2);
             float weight = 1.0 - diff;
             float feedback = lerp(FEEDBACK_MIN, FEEDBACK_MAX, weight * weight);
@@ -120,10 +186,13 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
             color.w = lerp(color.w, history.w, feedback);
             // TAA should not overwrite pixels with zero alpha. This allows camera stacking with mixed TAA settings (bottom camera with TAA OFF and top camera with TAA ON).
             CTYPE unjitteredColor = Fetch4(_InputTexture, input.texcoord - color.w * jitter, 0.0, _RTHandleScale.xy).CTYPE_SWIZZLE;
-            color.xyz = lerp(Map(unjitteredColor.xyz), color.xyz, color.w);
+            color.xyz = lerp(MapColor(unjitteredColor.xyz), color.xyz, color.w);
             feedback *= color.w;
     #endif
-            color.xyz = Unmap(lerp(color.xyz, history.xyz, feedback));
+            // Don't incorporate off-screen history samples
+            feedback *= all(IsInUnitBox(input.texcoord - motionVector));
+
+            color.xyz = UnmapColor(lerp(color.xyz, history.xyz, feedback));
             color.xyz = clamp(color.xyz, 0.0, CLAMP_MAX);
 
             _OutputHistoryTexture[COORD_TEXTURE2D_X(input.positionCS.xy)] = color;

@@ -1,0 +1,295 @@
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/ScreenSpaceLighting/SSLVDCommon.hlsl"
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/NormalBuffer.hlsl"
+
+#pragma kernel SSLVDDenoise_Spatial                      SPATIAL_DENOISE_KERNEL_NAME=SSLVDDenoise_Spatial
+#pragma kernel SSLVDDenoise_Spatial_HalfRes              SPATIAL_DENOISE_KERNEL_NAME=SSLVDDenoise_Spatial_HalfRes HALF_RES_SOURCE
+
+TEXTURE2D_X(_AOPackedData);
+TEXTURE2D_X(_AORawHarmonics1);
+TEXTURE2D_X(_AORawHarmonics5);
+
+RW_TEXTURE2D_X(float, _OcclusionTexture);
+RW_TEXTURE2D_X(float4, _OcclusionHarmonics1Texture);
+RW_TEXTURE2D_X(float4, _OcclusionHarmonics5Texture);
+
+#ifdef HALF_RES_SOURCE
+#define BILATERAL_DEPTH_SENSITIVITY 200
+#else
+#define BILATERAL_DEPTH_SENSITIVITY 1000
+#endif
+
+void GatherAODepth(float2 localUVs, out float4 aos, out float4 depths)
+{
+    UnpackAODepth(GATHER_TEXTURE2D_X(_AOPackedData, s_linear_clamp_sampler, localUVs), aos, depths);
+}
+
+float4 BilateralWeights(float4 sampledDepth, float rcpCentralDepth)
+{
+    float4 deltas = BILATERAL_DEPTH_SENSITIVITY * abs(sampledDepth - rcpCentralDepth);
+    deltas *= _AOInvHalfTanFOV;
+    return exp2(-deltas);
+}
+
+void Blur(float2 centralPos, out float sh0Out, out float4 sh1Out, out float4 sh5Out)
+{
+    float rcpCentralDepth = RcpEyeDepth(GetDepthForCentral(centralPos), _ZBufferParams);
+
+    uint frame = uint(_AOTemporalRotationIdx) & 3;
+
+    // using a 4x4 filter, so the central tap is not in the center... offset the kernel by 1 pixel, temporally, so central tap is center on average
+    bool2 kernelNudge = bool2(frame == 1 || frame == 2, frame == 1 || frame == 3);
+    kernelNudge = kernelNudge ^ (uint2(centralPos.yx) & 1);
+#ifdef HALF_RES_SOURCE
+    kernelNudge = !kernelNudge;
+#endif
+
+    centralPos += kernelNudge;
+
+#ifdef HALF_RES_SOURCE
+    centralPos *= 0.5;
+#endif
+
+    float2 uv00, uv20, uv02, uv22;
+    float4 w;
+    float4 aos, depths, weights;
+
+    float2 bufferScale = _AOBufferSize.zw;
+
+    uv00 = ClampAndScaleUVForBilinear(centralPos * bufferScale, bufferScale);
+    GatherAODepth(uv00, aos, depths);
+    weights = BilateralWeights(depths, rcpCentralDepth);
+    sh0Out = dot(aos, weights);
+    w[0] = dot(weights, 1);
+    uv00 += (-0.5 + rcp(w[0]) * float2(weights.z + weights.y, weights.x + weights.y)) * bufferScale;// *_RTHandleScale.xy;
+
+    uv20 = ClampAndScaleUVForBilinear((centralPos + lerp(float2(2, 0), float2(-2, 0), kernelNudge)) * bufferScale, bufferScale);
+    GatherAODepth(uv20, aos, depths);
+    weights = BilateralWeights(depths, rcpCentralDepth);
+    sh0Out += dot(aos, weights);
+    w[1] = dot(weights, 1);
+    uv20 += (-0.5 + rcp(w[1]) * float2(weights.z + weights.y, weights.x + weights.y)) * bufferScale;// *_RTHandleScale.xy;
+
+    uv02 = ClampAndScaleUVForBilinear((centralPos + lerp(float2(0, 2), float2(0, -2), kernelNudge)) * bufferScale, bufferScale);
+    GatherAODepth(uv02, aos, depths);
+    weights = BilateralWeights(depths, rcpCentralDepth);
+    sh0Out += dot(aos, weights);
+    w[2] = dot(weights, 1);
+    uv02 += (-0.5 + rcp(w[2]) * float2(weights.z + weights.y, weights.x + weights.y)) * bufferScale;// *_RTHandleScale.xy;
+
+    uv22 = ClampAndScaleUVForBilinear((centralPos + lerp(float2(2, 2), float2(-2, -2), kernelNudge)) * bufferScale, bufferScale);
+    GatherAODepth(uv22, aos, depths);
+    weights = BilateralWeights(depths, rcpCentralDepth);
+    sh0Out += dot(aos, weights);
+    w[3] = dot(weights, 1);
+    uv22 += (-0.5 + rcp(w[3]) * float2(weights.z + weights.y, weights.x + weights.y)) * bufferScale;// *_RTHandleScale.xy;
+
+    float weightNormFactor = rcp(dot(w, 1));
+    w *= weightNormFactor;
+
+    sh0Out *= weightNormFactor;
+
+    sh1Out  = w[0] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics1, s_linear_clamp_sampler, uv00, 0);
+    sh1Out += w[1] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics1, s_linear_clamp_sampler, uv20, 0);
+    sh1Out += w[2] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics1, s_linear_clamp_sampler, uv02, 0);
+    sh1Out += w[3] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics1, s_linear_clamp_sampler, uv22, 0);
+
+    sh5Out  = w[0] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics5, s_linear_clamp_sampler, uv00, 0);
+    sh5Out += w[1] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics5, s_linear_clamp_sampler, uv20, 0);
+    sh5Out += w[2] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics5, s_linear_clamp_sampler, uv02, 0);
+    sh5Out += w[3] * SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics5, s_linear_clamp_sampler, uv22, 0);
+
+    //float2 UV = ClampAndScaleUVForBilinear((centralPos + float2(0.5, 0.5)) * bufferScale, bufferScale);
+    //sh0Out = SAMPLE_TEXTURE2D_X_LOD(_AOPackedData, s_point_clamp_sampler, UV, 0).r;
+    //sh1Out = SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics1, s_point_clamp_sampler, UV, 0);
+    //sh5Out = SAMPLE_TEXTURE2D_X_LOD(_AORawHarmonics5, s_point_clamp_sampler, UV, 0);
+}
+
+[numthreads(8, 8, 1)]
+void SPATIAL_DENOISE_KERNEL_NAME(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    UNITY_XR_ASSIGN_VIEW_INDEX(dispatchThreadId.z);
+
+    float sh0;
+    float4 sh1, sh5;
+    Blur(dispatchThreadId.xy, sh0, sh1, sh5);
+
+    //float unused = 0;
+    //RestoreRange(unused, sh1, sh5);
+    _OcclusionTexture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = sh0;
+    _OcclusionHarmonics1Texture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = sh1;
+    _OcclusionHarmonics5Texture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = sh5;
+}
+
+#if 0//def TEMPORAL
+
+uint PackHistoryData(float AO, float depth, float mvLen)
+{
+    return (uint(round(AO * 255)) << 24) | uint(depth*16777216);
+    uint packedVal = 0;
+    packedVal = BitFieldInsert(0x000000ff, UnpackInt(AO, 8), packedVal);
+    packedVal = BitFieldInsert(0x0000ff00, UnpackInt(mvLen, 8) << 8, packedVal);
+    packedVal = BitFieldInsert(0xffff0000, UnpackInt(depth, 16) << 16, packedVal);
+    return packedVal;
+}
+
+void UnpackHistoryData(uint historyData, out float AO, out float depth, out float mvLen)
+{
+    depth = float(historyData & 16777215) / 16777216;
+    AO = float(historyData >> 24) / 255;
+    mvLen = 0;
+    //AO = UnpackUIntToFloat(historyData, 0, 8);
+    //mvLen = UnpackUIntToFloat(historyData, 8, 8);
+    //depth = UnpackUIntToFloat(historyData, 16, 16);
+}
+
+RW_TEXTURE2D_X(uint, _AOOutputHistory);
+RW_TEXTURE2D_X(half4, _AOOutputHistoryHarmonics1);
+RW_TEXTURE2D_X(half4, _AOOutputHistoryHarmonics5);
+
+TEXTURE2D_X(_AOPackedBlurred);
+TEXTURE2D_X(_AOHarmonics1Blurred);
+TEXTURE2D_X(_AOHarmonics5Blurred);
+TEXTURE2D_X_UINT(_AOPackedHistory);
+TEXTURE2D_X(_AOHistoryHarmonics1);
+TEXTURE2D_X(_AOHistoryHarmonics5);
+
+RW_TEXTURE2D_X(float, _OcclusionTexture);
+RW_TEXTURE2D_X(half4, _OcclusionHarmonics1Texture);
+RW_TEXTURE2D_X(half4, _OcclusionHarmonics5Texture);
+
+float3 FindMinMaxAvgAO(float2 centralPos, out float2 offsetToNearest)
+{
+    offsetToNearest = 0;
+    float minDepth = 1;
+    float minAO = 2.0f;
+    float maxAO = -2.0f;
+    float avg = 0;
+    for (int i = -1; i <= 1; ++i)
+    {
+        for (int j = -1; j <= 1; ++j)
+        {
+            float data = LOAD_TEXTURE2D_X(_AOPackedBlurred, (uint2)centralPos + uint2(i, j)).x;
+            float currAO, depth;
+            UnpackData(data, currAO, depth);
+            minDepth = min(depth, minDepth);
+            offsetToNearest = (depth == minDepth) ? float2(i, j) : offsetToNearest;
+            avg += currAO;
+            minAO = min(minAO, currAO);
+            maxAO = max(maxAO, currAO);
+        }
+    }
+
+    return float3(minAO, maxAO, avg/9);
+}
+
+float LengthSquared(float3 v)
+{
+    return dot(v, v);
+}
+
+[numthreads(8, 8, 1)]
+void TEMPORAL_DENOISE_KERNEL_NAME(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    UNITY_XR_ASSIGN_VIEW_INDEX(dispatchThreadId.z);
+
+    float currFrameData = _AOPackedBlurred[COORD_TEXTURE2D_X(dispatchThreadId.xy)].x;
+    float currDepth, currAO;
+    UnpackData(currFrameData, currAO, currDepth);
+
+    PositionInputs posInputs = GetPositionInput(float2(dispatchThreadId.xy), _ScreenSize.zw, uint2(8, 8));
+
+    float2 closest;
+    float3 minMax = FindMinMaxAvgAO(float2(dispatchThreadId.xy), closest);
+
+#if HALF_RES
+    closest += posInputs.positionSS * 2;
+#else
+    closest += posInputs.positionSS;
+#endif
+
+
+    float2 motionVector;
+    DecodeMotionVector(LOAD_TEXTURE2D_X(_CameraMotionVectorsTexture, closest), motionVector);
+    float motionVecLength = length(motionVector);
+
+    float2 uv = (dispatchThreadId.xy + 0.5) * _AOBufferSize.zw;
+    float2 prevFrameNDC = uv - motionVector;
+
+    uint prevData = asuint(_AOPackedHistory[COORD_TEXTURE2D_X((prevFrameNDC)*_AOHistorySize.xy)].x);
+    float prevMotionVecLen, prevAO, prevDepth;
+    UnpackHistoryData(prevData, prevAO, prevDepth, prevMotionVecLen);
+
+    float motionVecWeighting = saturate(motionVecLength * 100.0);
+    float velWeight = 1.0f - saturate((abs(prevMotionVecLen - motionVecWeighting)) * 3.0f);
+
+    float minAO = minMax.x;
+    float maxAO = minMax.y;
+    float avg = minMax.z;
+    float nudge = lerp(_AOTemporalUpperNudgeLimit, _AOTemporalLowerNudgeLimit, motionVecWeighting) * abs(avg - currAO);
+    minAO -= nudge;
+    maxAO += nudge;
+
+    float diff = abs(currAO - prevAO) / Max3(prevAO, currAO, 0.1f);
+    float weight = 1.0 - diff;
+    float feedback = lerp(0.85, 0.95, weight * weight);
+
+    prevAO = clamp(prevAO, minAO, maxAO);
+
+    float currW = LinearEyeDepth(currDepth, _ZBufferParams);
+    float prevW = LinearEyeDepth(prevDepth, _ZBufferParams);
+
+    float3 posWS = mul(_InvViewProjMatrix, float4((uv* float2(2, -2) + float2(-1, 1)) * currW, currDepth, currW)).xyz;
+    float3 prevWS = mul(_PrevInvViewProjMatrix, float4(((uv - motionVector) * float2(2, -2) + float2(-1, 1)) * prevW, prevDepth, prevW)).xyz + _PrevCamPosRWS;
+    //_PrevInvViewProjMatrix
+
+    float depth_similarity = saturate(pow(prevDepth / currDepth, 1) + 0.01);
+    depth_similarity = abs(prevDepth - currDepth) < 0.000001/currDepth;
+    depth_similarity = abs(currW - prevW) < 0.1 * currW;
+    depth_similarity = saturate(1 - 1. * LengthSquared(posWS - prevWS) / LengthSquared(posWS));
+    depth_similarity = saturate(0.01*LengthSquared(posWS)/LengthSquared(posWS - prevWS) - 1);
+    float alpha = feedback * depth_similarity *velWeight;
+    //float alpha = 0.95 * depth_similarity;// *velWeight;
+
+    //alpha = 0.9;
+    alpha *= all(saturate(prevFrameNDC) == prevFrameNDC);
+
+    float newAO = lerp(currAO, prevAO, alpha);// depth_similarity;// dot(frac(prevWS), 0.33);//
+    //float4 newHarmonics1 = lerp(_AOHarmonics1Blurred[COORD_TEXTURE2D_X(dispatchThreadId.xy)], _AOHistoryHarmonics1[COORD_TEXTURE2D_X(prevFrameNDC * _AOHistorySize.xy)], alpha);
+    //float4 newHarmonics5 = lerp(_AOHarmonics5Blurred[COORD_TEXTURE2D_X(dispatchThreadId.xy)], _AOHistoryHarmonics5[COORD_TEXTURE2D_X(prevFrameNDC * _AOHistorySize.xy)], alpha);
+    float4 newHarmonics1 = lerp(_AOHarmonics1Blurred[COORD_TEXTURE2D_X(dispatchThreadId.xy)], SAMPLE_TEXTURE2D_X_LOD(_AOHistoryHarmonics1, s_point_clamp_sampler, uv - motionVector, 0), alpha);
+    float4 newHarmonics5 = lerp(_AOHarmonics5Blurred[COORD_TEXTURE2D_X(dispatchThreadId.xy)], SAMPLE_TEXTURE2D_X_LOD(_AOHistoryHarmonics5, s_point_clamp_sampler, uv - motionVector, 0), alpha);
+
+    _AOOutputHistory[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = PackHistoryData(newAO, currDepth, motionVecWeighting);
+    _AOOutputHistoryHarmonics1[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = newHarmonics1;
+    _AOOutputHistoryHarmonics5[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = newHarmonics5;
+
+#ifdef HALF_RES
+    // The conversion and the pow happens in upsample phase.
+    _OcclusionTexture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = PackAOOutput(newAO, currDepth);
+#else
+    _OcclusionTexture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = OutputFinalAO(newAO);
+#endif
+    _OcclusionHarmonics1Texture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = newHarmonics1;
+    _OcclusionHarmonics5Texture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = newHarmonics5;
+
+}
+#endif
+
+
+#if 0//def HISTORY_COPY
+RW_TEXTURE2D_X(uint, _OutputTexture);
+RW_TEXTURE2D_X(half4, _OutputTexture1);
+RW_TEXTURE2D_X(half4, _OutputTexture2);
+TEXTURE2D_X(_InputTexture);
+TEXTURE2D_X(_InputTexture1);
+TEXTURE2D_X(_InputTexture2);
+
+[numthreads(8, 8, 1)]
+void SSLVDDenoise_CopyHistory(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    UNITY_XR_ASSIGN_VIEW_INDEX(dispatchThreadId.z);
+    _OutputTexture[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = _InputTexture[COORD_TEXTURE2D_X(dispatchThreadId.xy)].x;
+    _OutputTexture1[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = _InputTexture1[COORD_TEXTURE2D_X(dispatchThreadId.xy)];
+    _OutputTexture2[COORD_TEXTURE2D_X(dispatchThreadId.xy)] = _InputTexture2[COORD_TEXTURE2D_X(dispatchThreadId.xy)];
+}
+#endif

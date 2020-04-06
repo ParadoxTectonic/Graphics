@@ -6,18 +6,35 @@
 #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
 
 #pragma kernel AmbientProbeConvolution KERNEL_NAME=AmbientProbeConvolution
+#pragma kernel CompactProbeConvolution KERNEL_NAME=CompactProbeConvolution COMPACT_OUTPUT
+
+#ifdef COMPACT_OUTPUT
+
+RW_TEXTURE2D(float4, _AmbientProbeOutputBuffer);
+
+#else
 
 RWStructuredBuffer<float> _AmbientProbeOutputBuffer;
+
+#endif
+
+uint _AmbientProbeOutputOffset;
 TEXTURECUBE(_AmbientProbeInputCubemap);
 
 // Constants from SetSHEMapConstants function in the Stupid Spherical Harmonics Tricks paper:
 // http://www.ppsloan.org/publications/StupidSH36.pdf
-#define sqrtPI (sqrt(PI))
-#define fC0 (0.282095 * (1.0 / (2.0 * sqrtPI)))
-#define fC1 (0.488603 * (sqrt ( 3.0) / ( 3.0 * sqrtPI)))
-#define fC2 (1.092548 * (sqrt (15.0) / ( 8.0 * sqrtPI)))
-#define fC3 (0.315392 * (sqrt ( 5.0) / (16.0 * sqrtPI)))
-#define fC4 (0.546274 * 0.5 * fC2)
+
+// Jay 03/03/2020 - Refactored these constants. The last one was wrong, but the error was slight (about 9%).
+// The paper cited above doesn't illuminate much, tbh - these were derived from first principles.
+// Would prefer to remove the cosine convolution here, and apply it when shading. Note that the volumetric lighting system 
+// deconvolves this result to recover the pure sky projection, and visibility field AO would have to do the same.
+
+        //  [SH basis coeff] * [clamped cosine convolution factor]
+#define fC0 (rsqrt(PI*4)    )// * rsqrt(PI*4)     )
+#define fC1 (rsqrt(PI*4/3)  )// * rsqrt(PI*3)     )
+#define fC2 (rsqrt(PI*4/15) )// * rsqrt(PI*64/15) )
+#define fC3 (rsqrt(PI*16/5) )// * rsqrt(PI*256/5) )
+#define fC4 (rsqrt(PI*16/15))// * rsqrt(PI*256/15))
 
 #define SAMPLE_COUNT 256
 #define SH_COEFF_COUNT 27
@@ -30,7 +47,7 @@ TEXTURECUBE(_AmbientProbeInputCubemap);
     groupshared float outputSHCoeffsLDS[SH_COEFF_COUNT * SAMPLE_COUNT / 2];
 #endif
 
-static const float ConvolveCosineLobeBandFactor[] = { fC0, -fC1, fC1, -fC1, fC2, -fC2, fC3, -fC2, fC4 };
+static const float ConvolveCosineLobeBandFactor[] = { fC0, fC1, fC1, fC1, fC2, fC2, fC3, fC2, fC4 };
 
 [numthreads(SAMPLE_COUNT, 1, 1)]
 void KERNEL_NAME(uint dispatchThreadId : SV_DispatchThreadID)
@@ -63,13 +80,13 @@ void KERNEL_NAME(uint dispatchThreadId : SV_DispatchThreadID)
     for (int channel = 0; channel < 3; ++channel)
     {
         outputSHCoeffs[channel * 9 + 0] = value[channel];
-        outputSHCoeffs[channel * 9 + 1] = -n.y * value[channel];
+        outputSHCoeffs[channel * 9 + 1] = n.y * value[channel];
         outputSHCoeffs[channel * 9 + 2] = n.z * value[channel];
-        outputSHCoeffs[channel * 9 + 3] = -n.x * value[channel];
+        outputSHCoeffs[channel * 9 + 3] = n.x * value[channel];
         outputSHCoeffs[channel * 9 + 4] = n.x * n.y * value[channel];
-        outputSHCoeffs[channel * 9 + 5] = -n.y * n.z * value[channel];
+        outputSHCoeffs[channel * 9 + 5] = n.y * n.z * value[channel];
         outputSHCoeffs[channel * 9 + 6] = (3.0 * n.z * n.z - 1.0) * value[channel];
-        outputSHCoeffs[channel * 9 + 7] = -n.x * n.z * value[channel];
+        outputSHCoeffs[channel * 9 + 7] = n.x * n.z * value[channel];
         outputSHCoeffs[channel * 9 + 8] = (n.x * n.x - n.y * n.y) * value[channel];
     }
 
@@ -145,9 +162,32 @@ void KERNEL_NAME(uint dispatchThreadId : SV_DispatchThreadID)
     // Write to memory and convolution + weighing
     if (dispatchThreadId == 0)
     {
+#ifdef COMPACT_OUTPUT
+
+        const uint cRgbCoeffs = SH_COEFF_COUNT / 3;
+
+        for (i = 0; i < cRgbCoeffs; ++i)
+        {
+            float3 rgb = float3(
+                outputSHCoeffs[0 * cRgbCoeffs + i] * ConvolveCosineLobeBandFactor[i] * weight,
+                outputSHCoeffs[1 * cRgbCoeffs + i] * ConvolveCosineLobeBandFactor[i] * weight,
+                outputSHCoeffs[2 * cRgbCoeffs + i] * ConvolveCosineLobeBandFactor[i] * weight);
+
+            // texture is arranged in 4x3 pixel blocks like this:
+            // | sh0 sh1 sh2 sh3 |
+            // | sh4 sh5 sh6 sh7 |
+            // | sh8  X   X   X  |
+
+            _AmbientProbeOutputBuffer[uint2(i & 3, _AmbientProbeOutputOffset*3 + i/3)] = float4(rgb, 0.0f);
+        }
+
+#else
+
         for (i = 0; i < SH_COEFF_COUNT; ++i)
         {
-            _AmbientProbeOutputBuffer[i] = outputSHCoeffs[i] * ConvolveCosineLobeBandFactor[i % 9] * weight;
+            _AmbientProbeOutputBuffer[_AmbientProbeOutputOffset * 27 + i] = outputSHCoeffs[i] * ConvolveCosineLobeBandFactor[i % 9] * weight;
         }
+
+#endif
     }
 }

@@ -148,6 +148,7 @@ namespace UnityEngine.Rendering.HighDefinition
         BuiltinSkyParameters    m_BuiltinParameters = new BuiltinSkyParameters();
         ComputeShader           m_ComputeAmbientProbeCS;
         readonly int            m_AmbientProbeOutputBufferParam = Shader.PropertyToID("_AmbientProbeOutputBuffer");
+        readonly int            m_AmbientProbeOutputOffsetParam = Shader.PropertyToID("_AmbientProbeOutputOffset");
         readonly int            m_AmbientProbeInputCubemap = Shader.PropertyToID("_AmbientProbeInputCubemap");
         int                     m_ComputeAmbientProbeKernel;
         CubemapArray            m_BlackCubemapArray;
@@ -697,6 +698,7 @@ namespace UnityEngine.Rendering.HighDefinition
                             using (new ProfilingScope(cmd, ProfilingSampler.Get(HDProfileId.UpdateSkyAmbientProbe)))
                             {
                                 cmd.SetComputeBufferParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, renderingContext.ambientProbeResult);
+                                cmd.SetComputeIntParam(m_ComputeAmbientProbeCS, m_AmbientProbeOutputOffsetParam, 0);
                                 cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeInputCubemap, renderingContext.skyboxCubemapRT);
                                 cmd.DispatchCompute(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, 1, 1, 1);
                                 cmd.RequestAsyncReadback(renderingContext.ambientProbeResult, renderingContext.OnComputeAmbientProbeDone);

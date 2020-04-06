@@ -8,6 +8,8 @@ namespace UnityEditor.Rendering.HighDefinition
     [VolumeComponentEditor(typeof(AmbientOcclusion))]
     class AmbientOcclusionEditor : VolumeComponentWithQualityEditor
     {
+        SerializedDataParameter m_LocalVisibilityDistribution;
+
         SerializedDataParameter m_Intensity;
         SerializedDataParameter m_StepCount;
         SerializedDataParameter m_Radius;
@@ -40,6 +42,8 @@ namespace UnityEditor.Rendering.HighDefinition
 
             var o = new PropertyFetcher<AmbientOcclusion>(serializedObject);
 
+            m_LocalVisibilityDistribution = Unpack(o.Find(x => x.localVisibilityDistribution));
+
             m_Intensity = Unpack(o.Find(x => x.intensity));
             m_StepCount = Unpack(o.Find("m_StepCount"));
             m_Radius = Unpack(o.Find(x => x.radius));
@@ -69,6 +73,8 @@ namespace UnityEditor.Rendering.HighDefinition
                 EditorGUILayout.HelpBox("The current HDRP Asset does not support Ambient Occlusion.", MessageType.Error, wide: true);
                 return;
             }
+
+            PropertyField(m_LocalVisibilityDistribution, EditorGUIUtility.TrTextContent("Local Visibility Distribution", "Enable direction-sensitive occlusion and shading effects."));
 
             if (HDRenderPipeline.pipelineSupportsRayTracing)
                 PropertyField(m_RayTracing, EditorGUIUtility.TrTextContent("Ray Tracing", "Enable ray traced ambient occlusion."));

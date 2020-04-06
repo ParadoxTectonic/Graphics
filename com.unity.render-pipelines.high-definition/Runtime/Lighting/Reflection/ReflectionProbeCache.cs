@@ -15,6 +15,15 @@ namespace UnityEngine.Rendering.HighDefinition
         int                     m_CacheSize;
         IBLFilterBSDF[]         m_IBLFilterBSDF;
         TextureCacheCubemap     m_TextureCache;
+
+        RenderTexture           m_SphericalHarmonicsRenderTexture;
+        Texture                 m_DefaultSphericalHarmonicsTexture;
+        ComputeShader           m_ComputeAmbientProbeCS;
+        int                     m_ComputeAmbientProbeKernel;
+        readonly int            m_AmbientProbeOutputBufferParam = Shader.PropertyToID("_AmbientProbeOutputBuffer");
+        readonly int            m_AmbientProbeOutputOffsetParam = Shader.PropertyToID("_AmbientProbeOutputOffset");
+        readonly int            m_AmbientProbeInputCubemap = Shader.PropertyToID("_AmbientProbeInputCubemap");
+
         RenderTexture           m_TempRenderTexture;
         RenderTexture[]         m_ConvolutionTargetTextureArray;
         ProbeFilteringState[]   m_ProbeBakingState;
@@ -38,7 +47,15 @@ namespace UnityEngine.Rendering.HighDefinition
             m_CacheSize = cacheSize;
             m_TextureCache = new TextureCacheCubemap("ReflectionProbe", iblFilterBSDFArray.Length);
             m_TextureCache.AllocTextureArray(cacheSize, probeSize, probeFormat, isMipmaped, m_CubeToPano);
+            m_SphericalHarmonicsRenderTexture = new RenderTexture(4, 3*cacheSize, 0, RenderTextureFormat.ARGBHalf) { name = "ReflectionProbeCache Spherical Harmonics", bindTextureMS = false, useDynamicScale = false, enableRandomWrite = true };
+            m_SphericalHarmonicsRenderTexture.Create();
+
+            m_DefaultSphericalHarmonicsTexture = defaultResources.textures.defaultReflectionProbeSHTex;
+
             m_IBLFilterBSDF = iblFilterBSDFArray;
+
+            m_ComputeAmbientProbeCS = HDRenderPipeline.defaultAsset.renderPipelineResources.shaders.ambientProbeConvolutionCS;
+            m_ComputeAmbientProbeKernel = m_ComputeAmbientProbeCS.FindKernel("CompactProbeConvolution");
 
             m_PerformBC6HCompression = probeFormat == GraphicsFormat.RGB_BC6H_SFloat;
 
@@ -87,6 +104,7 @@ namespace UnityEngine.Rendering.HighDefinition
         public void Release()
         {
             m_TextureCache.Release();
+            CoreUtils.Destroy(m_SphericalHarmonicsRenderTexture);
             CoreUtils.Destroy(m_TempRenderTexture);
 
             if(m_ConvolutionTargetTextureArray != null)
@@ -127,7 +145,7 @@ namespace UnityEngine.Rendering.HighDefinition
             }
         }
 
-        Texture[] ConvolveProbeTexture(CommandBuffer cmd, Texture texture)
+        Texture[] ConvolveProbeTexture(CommandBuffer cmd, Texture texture, int sliceIndex)
         {
             // Probes can be either Cubemaps (for baked probes) or RenderTextures (for realtime probes)
             Cubemap cubeTexture = texture as Cubemap;
@@ -189,6 +207,12 @@ namespace UnityEngine.Rendering.HighDefinition
                 // Generate unfiltered mipmaps as a base for convolution
                 // TODO: Make sure that we don't first convolve everything on the GPU with the legacy code path executed after rendering the probe.
                 cmd.GenerateMips(convolutionSourceTexture);
+
+                //cmd.SetComputeBufferParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, m_SphericalHarmonicsBuffer);
+                cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, m_SphericalHarmonicsRenderTexture);
+                cmd.SetComputeIntParam(m_ComputeAmbientProbeCS, m_AmbientProbeOutputOffsetParam, sliceIndex);
+                cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeInputCubemap, convolutionSourceTexture);
+                cmd.DispatchCompute(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, 1, 1, 1);
             }
 
             for(int bsdfIdx = 0; bsdfIdx < m_IBLFilterBSDF.Length; ++bsdfIdx)
@@ -212,7 +236,7 @@ namespace UnityEngine.Rendering.HighDefinition
                         // For now baking is done directly but will be time sliced in the future. Just preparing the code here.
                         m_ProbeBakingState[sliceIndex] = ProbeFilteringState.Convolving;
 
-                        Texture[] result = ConvolveProbeTexture(cmd, texture);
+                        Texture[] result = ConvolveProbeTexture(cmd, texture, sliceIndex);
                         if (result == null)
                             return -1;
 
@@ -239,6 +263,11 @@ namespace UnityEngine.Rendering.HighDefinition
         public Texture GetTexCache()
         {
             return m_TextureCache.GetTexCache();
+        }
+
+        public Texture GetSphericalHarmonicsRenderTexture()
+        {
+            return m_SphericalHarmonicsRenderTexture == null ? m_DefaultSphericalHarmonicsTexture : m_SphericalHarmonicsRenderTexture;
         }
 
         internal static long GetApproxCacheSizeInByte(int nbElement, int resolution, int sliceSize)

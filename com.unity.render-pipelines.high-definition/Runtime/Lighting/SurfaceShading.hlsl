@@ -47,7 +47,7 @@ DirectLighting ShadeSurface_Infinitesimal(PreLightData preLightData, BSDFData bs
         // the optimization pass of the compiler will remove all of the associated code.
         // However, this will take a lot more CPU time than doing the same thing using
         // the preprocessor.
-        lighting.diffuse  = (cbsdf.diffR + cbsdf.diffT * transmittance) * lightColor * diffuseDimmer;
+        lighting.diffuse  = lerp(cbsdf.diffR, cbsdf.diffT, 0.5*transmittance) * lightColor * diffuseDimmer;
         lighting.specular = (cbsdf.specR + cbsdf.specT * transmittance) * lightColor * specularDimmer;
     }
 
@@ -92,7 +92,7 @@ DirectLighting ShadeSurface_Directional(LightLoopContext lightLoopContext,
         else
 #endif
         {
-            DirectionalShadowType shadow = EvaluateShadow_Directional(lightLoopContext, posInput, light, builtinData, GetNormalForShadowBias(bsdfData));
+            DirectionalShadowType shadow = EvaluateShadow_Directional(lightLoopContext, posInput, light, builtinData, GetNormalForShadowBias(bsdfData), preLightData.localVisibility);
             float NdotL  = dot(bsdfData.normalWS, L); // No microshadowing when facing away from light (use for thin transmission as well)
             shadow *= NdotL >= 0.0 ? ComputeMicroShadowing(GetAmbientOcclusionForMicroShadowing(bsdfData), NdotL, _MicroShadowOpacity) : 1.0;
             lightColor.rgb *= ComputeShadowColor(shadow, light.shadowTint, light.penumbraTint);
@@ -182,7 +182,7 @@ DirectLighting ShadeSurface_Punctual(LightLoopContext lightLoopContext,
 #endif
         {
             // This code works for both surface reflection and thin object transmission.
-            float shadow = EvaluateShadow_Punctual(lightLoopContext, posInput, light, builtinData, GetNormalForShadowBias(bsdfData), L, distances);
+            float shadow = EvaluateShadow_Punctual(lightLoopContext, posInput, light, builtinData, GetNormalForShadowBias(bsdfData), L, distances, preLightData.localVisibility);
             lightColor.rgb *= ComputeShadowColor(shadow, light.shadowTint, light.penumbraTint);
 
 #ifdef DEBUG_DISPLAY

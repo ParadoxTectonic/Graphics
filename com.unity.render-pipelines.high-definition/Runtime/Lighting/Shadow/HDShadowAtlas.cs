@@ -249,6 +249,7 @@ namespace UnityEngine.Rendering.HighDefinition
                 }
                 else
                 {
+                    #if false
 
                     // We need to resort the list, so we use the occasion to reset the pool. This feels suboptimal, but it is the easiest way to comply with the pooling system.
                     // TODO: Make this cleaner and more efficient.
@@ -274,6 +275,23 @@ namespace UnityEngine.Rendering.HighDefinition
                             return i;
                         }
                     }
+
+                    #else
+
+                    // jay 02-28-2020: above code indexes out of range and explodes because m_ListOfCachedShadowRequests.Count can exceed length of m_CachedResolutionRequests
+
+                    m_ListOfCachedShadowRequests.Add(request);
+                    InsertionSort(m_ListOfCachedShadowRequests.ToArray(), 0, m_ListOfCachedShadowRequests.Count);
+                    frameOfCacheValidity = 0;     // Invalidate cached data
+                    m_CachedResolutionRequestsCounter = Math.Min(m_ListOfCachedShadowRequests.Count, m_CachedResolutionRequests.Length);
+                    for (int i=0; i<m_CachedResolutionRequestsCounter; ++i)
+                    {
+                        m_CachedResolutionRequests[i] = m_ListOfCachedShadowRequests[i].ShallowCopy();
+                        shadowIndex = (m_ListOfCachedShadowRequests[i].lightID == request.lightID && m_ListOfCachedShadowRequests[i].indexInLight == request.indexInLight) ? i : -1;
+                    }
+                    return shadowIndex;
+
+                    #endif
                 }
             }
             else if (m_ListOfCachedShadowRequests[shadowIndex].emptyRequest)

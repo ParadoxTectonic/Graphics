@@ -54,6 +54,8 @@ void InitBuiltinData(PositionInputs posInput, float alpha, float3 normalWS, floa
     else
 #endif
 
+    // Jay 03/08/20 - Diffuse comes from reflection probes now. This is partially to fix GPU readback data race bug in Unity, but also to allow future SH-AO to triple-product with ambient and shading normal lobe.
+#if 0
     // Sample lightmap/lightprobe/volume proxy
     builtinData.bakeDiffuseLighting = SampleBakedGI(posInput.positionWS, normalWS, texCoord1.xy, texCoord2.xy);
     // We also sample the back lighting in case we have transmission. If not use this will be optimize out by the compiler
@@ -61,6 +63,7 @@ void InitBuiltinData(PositionInputs posInput, float alpha, float3 normalWS, floa
     // however it may not optimize the lightprobe case due to the proxy volume relying on dynamic if (to verify), not a problem for SH9, but a problem for proxy volume.
     // TODO: optimize more this code.
     builtinData.backBakeDiffuseLighting = SampleBakedGI(posInput.positionWS, backNormalWS, texCoord1.xy, texCoord2.xy);
+#endif
 
 #ifdef SHADOWS_SHADOWMASK
     float4 shadowMask = SampleShadowMask(posInput.positionWS, texCoord1.xy);

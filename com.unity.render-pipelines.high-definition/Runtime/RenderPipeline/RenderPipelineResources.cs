@@ -182,6 +182,10 @@ namespace UnityEngine.Rendering.HighDefinition
             public ComputeShader GTAODenoiseCS;
             [Reload("Runtime/Lighting/ScreenSpaceLighting/GTAOBlurAndUpsample.compute")]
             public ComputeShader GTAOBlurAndUpsample;
+            [Reload("Runtime/Lighting/ScreenSpaceLighting/SSLVD.compute")]
+            public ComputeShader SSLVDCS;
+            [Reload("Runtime/Lighting/ScreenSpaceLighting/SSLVDDenoise.compute")]
+            public ComputeShader SSLVDDenoiseCS;
 
             // MSAA Shaders
             [Reload("Runtime/RenderPipeline/RenderPass/MSAA/DepthValues.shader")]
@@ -325,6 +329,9 @@ namespace UnityEngine.Rendering.HighDefinition
 
             [Reload("Runtime/RenderPipelineResources/Texture/DefaultHDRISky.exr")]
             public Cubemap     defaultHDRISky;
+
+            [Reload("Runtime/RenderPipelineResources/Texture/ReflectionProbeSHDefault.png")]
+            public Texture     defaultReflectionProbeSHTex;
         }
 
         [Serializable, ReloadGroup]

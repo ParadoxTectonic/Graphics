@@ -1,5 +1,7 @@
 // This files include various function uses to evaluate material
 
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LocalVisibility.hlsl"
+
 //-----------------------------------------------------------------------------
 // Lighting structure for light accumulation
 //-----------------------------------------------------------------------------
@@ -16,6 +18,7 @@ struct IndirectLighting
 {
     real3 specularReflected;
     real3 specularTransmitted;
+    real3 diffuseReflected;
 };
 
 struct AggregateLighting
@@ -34,6 +37,7 @@ void AccumulateIndirectLighting(IndirectLighting src, inout AggregateLighting ds
 {
     dst.indirect.specularReflected += src.specularReflected;
     dst.indirect.specularTransmitted += src.specularTransmitted;
+    dst.indirect.diffuseReflected += src.diffuseReflected;
 }
 
 //-----------------------------------------------------------------------------
@@ -85,6 +89,15 @@ void GetScreenSpaceAmbientOcclusion(float2 positionSS, float NdotV, float percep
     aoFactor.directAmbientOcclusion = lerp(_AmbientOcclusionParam.rgb, float3(1.0, 1.0, 1.0), directAmbientOcclusion);    
 }
 
+float3 ComputeMultiBounceFactor(float visibility, float3 albedo)
+{
+    float3 a = mad(albedo, 2.0404, -0.3324);
+    float3 b = mad(albedo, -4.7951, 0.6417);
+    float3 c = mad(albedo, 2.7552, 0.6903);
+
+    return max(1., mad(mad(visibility, a, b), visibility, c));
+}
+
 // Use GTAOMultiBounce approximation for ambient occlusion (allow to get a tint from the diffuseColor)
 void GetScreenSpaceAmbientOcclusionMultibounce(float2 positionSS, float NdotV, float perceptualRoughness, float ambientOcclusionFromData, float specularOcclusionFromData, float3 diffuseColor, float3 fresnel0, out AmbientOcclusionFactor aoFactor)
 {
@@ -101,6 +114,25 @@ void GetScreenSpaceAmbientOcclusionMultibounce(float2 positionSS, float NdotV, f
     aoFactor.directAmbientOcclusion = GTAOMultiBounce(directAmbientOcclusion, diffuseColor);
 }
 
+void GetScreenSpaceAmbientOcclusionMultibounce(LocalVisibility localVisibility, float NdotV, float perceptualRoughness, float ambientOcclusionFromData, float specularOcclusionFromData, float3 diffuseColor, float3 fresnel0, out AmbientOcclusionFactor aoFactor)
+{
+    float scalarVisibility = localVisibility.harmonics0 * sqrt(4 * PI);
+    float directAmbientOcclusion = lerp(1.0, scalarVisibility, _AmbientOcclusionParam.w);
+
+    float roughness = PerceptualRoughnessToRoughness(perceptualRoughness);
+    float indirectSpecularOcclusion = GetSpecularOcclusionFromAmbientOcclusion(ClampNdotV(NdotV), scalarVisibility, roughness);
+    float directSpecularOcclusion = lerp(1.0, indirectSpecularOcclusion, _AmbientOcclusionParam.w);
+
+    aoFactor.indirectSpecularOcclusion = 1;// GTAOMultiBounce(min(specularOcclusionFromData, indirectSpecularOcclusion), fresnel0);
+    aoFactor.indirectAmbientOcclusion = ComputeMultiBounceFactor(min(ambientOcclusionFromData, scalarVisibility), diffuseColor);// GTAOMultiBounce(min(ambientOcclusionFromData, indirectAmbientOcclusion), diffuseColor);
+    aoFactor.directSpecularOcclusion = 1;// GTAOMultiBounce(directSpecularOcclusion, fresnel0);
+    aoFactor.directAmbientOcclusion = 1;// GTAOMultiBounce(directAmbientOcclusion, diffuseColor);
+
+#ifdef DEBUG_DISPLAY
+    aoFactor.indirectAmbientOcclusion = scalarVisibility;
+#endif
+}
+
 void ApplyAmbientOcclusionFactor(AmbientOcclusionFactor aoFactor, inout BuiltinData builtinData, inout AggregateLighting lighting)
 {
     // Note: In case of deferred Lit, builtinData.bakeDiffuseLighting contains indirect diffuse * surfaceData.ambientOcclusion + emissive,
@@ -110,10 +142,33 @@ void ApplyAmbientOcclusionFactor(AmbientOcclusionFactor aoFactor, inout BuiltinD
     // This is a tradeoff to avoid storing the precomputed (from data) AO in the GBuffer.
     // (This is also why GetScreenSpaceAmbientOcclusion*() is effectively called with AOFromData = 1.0 in Lit:PostEvaluateBSDF() in the 
     // deferred case since DecodeFromGBuffer will init bsdfData.ambientOcclusion to 1.0 and we will only have SSAO in the aoFactor here)
+
     builtinData.bakeDiffuseLighting *= aoFactor.indirectAmbientOcclusion;
+    lighting.indirect.diffuseReflected *= aoFactor.indirectAmbientOcclusion;
     lighting.indirect.specularReflected *= aoFactor.indirectSpecularOcclusion;
     lighting.direct.diffuse *= aoFactor.directAmbientOcclusion;
     lighting.direct.specular *= aoFactor.directSpecularOcclusion;
+}
+
+void GetLocalVisibility(float2 positionSS, out LocalVisibility localVisibility)
+{
+#if (SHADERPASS == SHADERPASS_RAYTRACING_INDIRECT) || (SHADERPASS == SHADERPASS_RAYTRACING_FORWARD) || defined(_SURFACE_TYPE_TRANSPARENT)
+
+    localVisibility = FullLocalVisibility();
+
+#else
+
+    localVisibility.harmonics0 = 1.0 - LOAD_TEXTURE2D_X(_AmbientOcclusionTexture, positionSS).x;    // stored as complement so zero (unbound texture) -> full visibility
+    localVisibility.harmonics1 = LOAD_TEXTURE2D_X(_AmbientOcclusionSH1Texture, positionSS);// +float4(0.0001, 0, 0, 0);   // slight offset so dominant direction exists when texture unbound
+    localVisibility.harmonics5 = LOAD_TEXTURE2D_X(_AmbientOcclusionSH5Texture, positionSS);
+
+    // reinflate from unorm/snorm
+    float2 c = float2(sqrt(3*PI*PI*PI/32), sqrt(5*PI/9));
+    localVisibility.harmonics0 *= sqrt(4 * PI);
+    localVisibility.harmonics1 *= c.xxxy;
+    localVisibility.harmonics5 *= c.yyyy;
+
+#endif
 }
 
 #ifdef DEBUG_DISPLAY
