@@ -22,7 +22,8 @@
 #define UNITY_LIGHTMODEL_AMBIENT (glstate_lightmodel_ambient * 2)
 
 // This only defines the ray tracing macro on the platforms that support ray tracing this should be dx12
-#if (SHADEROPTIONS_RAYTRACING && (defined(SHADER_API_D3D11) || defined(SHADER_API_D3D12)) && !defined(SHADER_API_XBOXONE) && !defined(SHADER_API_PSSL))
+// GameCore RayTracing is not supported at the moment
+#if (SHADEROPTIONS_RAYTRACING && (defined(SHADER_API_D3D11) || defined(SHADER_API_D3D12)) && !defined(SHADER_API_XBOXONE) && !defined(SHADER_API_GAMECORE) && !defined(SHADER_API_PSSL))
 #define RAYTRACING_ENABLED (1)
 #define DirectionalShadowType float3
 #else

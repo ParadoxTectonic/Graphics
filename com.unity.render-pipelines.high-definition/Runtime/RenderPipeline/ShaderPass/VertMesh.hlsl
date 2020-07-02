@@ -112,8 +112,15 @@ VaryingsMeshType VertMesh(AttributesMesh input)
 #endif
 
     // This return the camera relative position (if enable)
+#ifdef HAVE_SPECIAL_OBJECT_TRANSFORM
+    float3 positionRWS = SpecialTransformObjectToWorld(input.positionOS);
+#else
     float3 positionRWS = TransformObjectToWorld(input.positionOS);
-#ifdef ATTRIBUTES_NEED_NORMAL
+#endif
+
+#if defined(ATTRIBUTES_NEED_NORMAL) && defined(HAVE_SPECIAL_OBJECT_TRANSFORM)
+    float3 normalWS = SpecialTransformObjectToWorldNormal(input.normalOS);
+#elif defined(ATTRIBUTES_NEED_NORMAL)
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
 #else
     float3 normalWS = float3(0.0, 0.0, 0.0); // We need this case to be able to compile ApplyVertexModification that doesn't use normal.

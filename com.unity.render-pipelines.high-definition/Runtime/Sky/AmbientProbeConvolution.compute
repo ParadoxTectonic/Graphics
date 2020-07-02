@@ -3,7 +3,7 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Sampling/Hammersley.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Sampling/Sampling.hlsl"
 
-#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+#pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
 #pragma kernel AmbientProbeConvolution KERNEL_NAME=AmbientProbeConvolution
 #pragma kernel CompactProbeConvolution KERNEL_NAME=CompactProbeConvolution COMPACT_OUTPUT
@@ -25,16 +25,27 @@ TEXTURECUBE(_AmbientProbeInputCubemap);
 // http://www.ppsloan.org/publications/StupidSH36.pdf
 
 // Jay 03/03/2020 - Refactored these constants. The last one was wrong, but the error was slight (about 9%).
-// The paper cited above doesn't illuminate much, tbh - these were derived from first principles.
-// Would prefer to remove the cosine convolution here, and apply it when shading. Note that the volumetric lighting system 
-// deconvolves this result to recover the pure sky projection, and visibility field AO would have to do the same.
+// The paper cited above doesn't illuminate much, tbh - these were just mathed.
+// Cosine convolution term is elided for the case where we'll be doing that downstream during lighting.
+// Note that the volumetric lighting system deconvolves the other result to recover the pure one - this is fine.
 
+#ifdef COMPACT_OUTPUT
+
+#define fC0 (rsqrt(PI*4)    )
+#define fC1 (rsqrt(PI*4/3)  )
+#define fC2 (rsqrt(PI*4/15) )
+#define fC3 (rsqrt(PI*16/5) )
+#define fC4 (rsqrt(PI*16/15))
+
+#else
         //  [SH basis coeff] * [clamped cosine convolution factor]
-#define fC0 (rsqrt(PI*4)    )// * rsqrt(PI*4)     )
-#define fC1 (rsqrt(PI*4/3)  )// * rsqrt(PI*3)     )
-#define fC2 (rsqrt(PI*4/15) )// * rsqrt(PI*64/15) )
-#define fC3 (rsqrt(PI*16/5) )// * rsqrt(PI*256/5) )
-#define fC4 (rsqrt(PI*16/15))// * rsqrt(PI*256/15))
+#define fC0 (rsqrt(PI*4)     * rsqrt(PI*4)     )
+#define fC1 (rsqrt(PI*4/3)   * rsqrt(PI*3)     )
+#define fC2 (rsqrt(PI*4/15)  * rsqrt(PI*64/15) )
+#define fC3 (rsqrt(PI*16/5)  * rsqrt(PI*256/5) )
+#define fC4 (rsqrt(PI*16/15) * rsqrt(PI*256/15))
+
+#endif
 
 #define SAMPLE_COUNT 256
 #define SH_COEFF_COUNT 27

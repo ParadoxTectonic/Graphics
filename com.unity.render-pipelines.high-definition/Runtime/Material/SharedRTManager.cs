@@ -116,8 +116,16 @@ namespace UnityEngine.Rendering.HighDefinition
         public bool IsConsolePlatform()
         {
             return SystemInfo.graphicsDeviceType == GraphicsDeviceType.PlayStation4 ||
+#if UNITY_PS5
+                SystemInfo.graphicsDeviceType == GraphicsDeviceType.PlayStation5 ||
+#endif
                 SystemInfo.graphicsDeviceType == GraphicsDeviceType.XboxOne ||
-                SystemInfo.graphicsDeviceType == GraphicsDeviceType.XboxOneD3D12;
+                SystemInfo.graphicsDeviceType == GraphicsDeviceType.XboxOneD3D12
+#if UNITY_GAMECORE
+                || SystemInfo.graphicsDeviceType == GraphicsDeviceType.GameCoreXboxOne
+                || SystemInfo.graphicsDeviceType == GraphicsDeviceType.GameCoreScarlett
+#endif
+                ;
         }
 
         // Function that will return the set of buffers required for the prepass (depending on if msaa is enabled or not)

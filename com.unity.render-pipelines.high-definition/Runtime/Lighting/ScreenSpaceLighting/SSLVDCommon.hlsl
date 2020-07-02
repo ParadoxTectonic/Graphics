@@ -40,16 +40,16 @@ CBUFFER_END
 
 float PackAODepth(float ao, float depth)
 {
-    uint aoQuantized = round(saturate(ao) * 255.);
-    uint packed = (asuint(depth) & ~0xff) | aoQuantized;
-    return asfloat(packed);
+    uint aoQuantized = round(saturate(ao) * 255.0);
+    uint packedData = (asuint(depth) & ~0xff) | aoQuantized;
+    return asfloat(packedData);
 }
 
-void UnpackAODepth(float4 packed, out float4 ao, out float4 depths)
+void UnpackAODepth(float4 packedData, out float4 ao, out float4 depths)
 {
-    uint4 aoQuantized = asuint(packed) & 0xff;
+    uint4 aoQuantized = asuint(packedData) & 0xff;
     ao = aoQuantized / 255.0;
-    depths = packed;// asfloat(asuint(packed) & ~0xff);
+    depths = packedData;// asfloat(asuint(packedData) & ~0xff);
 }
 
 float RcpEyeDepth(float depth, float4 zBufferParam)

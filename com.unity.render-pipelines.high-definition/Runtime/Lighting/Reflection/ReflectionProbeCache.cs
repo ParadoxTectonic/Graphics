@@ -208,11 +208,13 @@ namespace UnityEngine.Rendering.HighDefinition
                 // TODO: Make sure that we don't first convolve everything on the GPU with the legacy code path executed after rendering the probe.
                 cmd.GenerateMips(convolutionSourceTexture);
 
-                //cmd.SetComputeBufferParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, m_SphericalHarmonicsBuffer);
-                cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, m_SphericalHarmonicsRenderTexture);
-                cmd.SetComputeIntParam(m_ComputeAmbientProbeCS, m_AmbientProbeOutputOffsetParam, sliceIndex);
-                cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeInputCubemap, convolutionSourceTexture);
-                cmd.DispatchCompute(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, 1, 1, 1);
+                if (m_SphericalHarmonicsRenderTexture != null)
+                {
+                    cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeOutputBufferParam, m_SphericalHarmonicsRenderTexture);
+                    cmd.SetComputeIntParam(m_ComputeAmbientProbeCS, m_AmbientProbeOutputOffsetParam, sliceIndex);
+                    cmd.SetComputeTextureParam(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, m_AmbientProbeInputCubemap, convolutionSourceTexture);
+                    cmd.DispatchCompute(m_ComputeAmbientProbeCS, m_ComputeAmbientProbeKernel, 1, 1, 1);
+                }
             }
 
             for(int bsdfIdx = 0; bsdfIdx < m_IBLFilterBSDF.Length; ++bsdfIdx)

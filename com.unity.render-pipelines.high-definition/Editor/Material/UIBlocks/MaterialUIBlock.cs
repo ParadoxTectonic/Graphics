@@ -6,7 +6,7 @@ using UnityEditor.Rendering;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
-    abstract class MaterialUIBlock
+    public abstract class MaterialUIBlock
     {
         protected MaterialEditor        materialEditor;
         protected Material[]            materials;

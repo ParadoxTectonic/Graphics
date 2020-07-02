@@ -11,7 +11,7 @@ using static UnityEngine.Rendering.HighDefinition.HDMaterialProperties;
 namespace UnityEditor.Rendering.HighDefinition
 {
     // Note: There is another SurfaceType in ShaderGraph (AlphaMode.cs) which conflicts in HDRP shader graph files
-    enum SurfaceType
+    public enum SurfaceType
     {
         Opaque,
         Transparent
@@ -47,7 +47,7 @@ namespace UnityEditor.Rendering.HighDefinition
         Phong
     }
 
-    enum MaterialId
+    public enum MaterialId
     {
         LitSSS = 0,
         LitStandard = 1,
@@ -57,7 +57,7 @@ namespace UnityEditor.Rendering.HighDefinition
         LitTranslucent = 5
     };
 
-    enum NormalMapSpace
+    public enum NormalMapSpace
     {
         TangentSpace,
         ObjectSpace,
@@ -76,7 +76,7 @@ namespace UnityEditor.Rendering.HighDefinition
         Add
     }
 
-    internal enum UVDetailMapping
+    public enum UVDetailMapping
     {
         UV0,
         UV1,
@@ -84,7 +84,7 @@ namespace UnityEditor.Rendering.HighDefinition
         UV3
     }
 
-    internal enum UVBaseMapping
+    public enum UVBaseMapping
     {
         UV0,
         UV1,

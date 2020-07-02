@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
-    class EmissionUIBlock : MaterialUIBlock
+    public class EmissionUIBlock : MaterialUIBlock
     {
         [Flags]
         public enum Features

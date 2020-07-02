@@ -17,7 +17,7 @@ namespace UnityEditor.Rendering.HighDefinition
     // of the material you must use Material UI Blocks, examples of doing so can be found in the classes UnlitGUI,
     // LitGUI or LayeredLitGUI.
 
-    abstract class HDShaderGUI : ShaderGUI
+    public abstract class HDShaderGUI : ShaderGUI
     {
         protected bool m_FirstFrame = true;
 

@@ -908,7 +908,7 @@ namespace UnityEngine.Rendering.HighDefinition
     }
 
     // Shared material property names
-    static class HDMaterialProperties
+    public static class HDMaterialProperties
     {
         // Stencil properties
         public const string kStencilRef = "_StencilRef";

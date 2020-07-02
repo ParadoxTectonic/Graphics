@@ -156,7 +156,9 @@
 #endif
 
 // Include language header
-#if defined(SHADER_API_XBOXONE)
+#if defined(SHADER_API_GAMECORE)
+#include "Packages/com.unity.render-pipelines.gamecore/ShaderLibrary/API/GameCore.hlsl"
+#elif defined(SHADER_API_XBOXONE)
 #include "Packages/com.unity.render-pipelines.xboxone/ShaderLibrary/API/XBoxOne.hlsl"
 #elif defined(SHADER_API_PSSL)
 #include "Packages/com.unity.render-pipelines.ps4/ShaderLibrary/API/PSSL.hlsl"

@@ -1,7 +1,8 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Sampling/Sampling.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/PostProcessing/Shaders/DepthOfFieldCommon.hlsl"
 
-#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+#pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
 #pragma kernel KParametricBlurKernel          MAIN=KParametricBlurKernel        GROUP_SIZE=64
 
@@ -22,52 +23,11 @@ CBUFFER_END
 #define Rotation       _Params1.w
 #define Anamorphism    _Params2.x
 
-// Input is coordinates on a normalized square; returns sample coordinates in range [-1,1]
-float2 GetSample(float2 coords)
+float2 GetSample(uint i, uint count)
 {
-    // TODO: Reference implementation, reduce all of this
-    // TODO: Fix uneven distribution of samples when moving from circle to NGon
-
-    // Returns a sample point for a given coordinates in a normalized square
-    // "A Low Distortion Map Between Disk and Square" [Shirley97] [Chiu97]
-    float phi, r;
-    float a = coords.x * 2.0 - 1.0;
-    float b = coords.y * 2.0 - 1.0;
-
-    if (a > -b)
-    {
-        if (a > b)
-        {
-            r = a;
-            phi = (PI / 4.0) * (b / a);
-        }
-        else
-        {
-            r = b;
-            phi = (PI / 4.0) * (2.0 - (a / b));
-        }
-    }
-    else
-    {
-        if (a < b)
-        {
-            r = -a;
-            phi = (PI / 4.0) * (4.0 + (b / a));
-        }
-        else
-        {
-            r = -b;
-
-            if (b != 0.0)
-            {
-                phi = (PI / 4.0) * (6.0 - (a / b));
-            }
-            else
-            {
-                phi = 0.0;
-            }
-        }
-    }
+    // Fibonacci spiral
+    float r = sqrt(float(i + 0.333) / float(count));
+    float phi = float(i) * 2.39996323f;  // "golden angle"
 
     // Transform to rotated ngon
     // "CryEngine 3 Graphics Gems" [Sousa13]
@@ -90,17 +50,8 @@ void MAIN(uint dispatchThreadId : SV_DispatchThreadID)
     if (dispatchThreadId >= uint(SampleCount * SampleCount))
         return;
 
-    // 1D -> 2D for regular samples
-    uint2 kernelCoords = uint2(
-        dispatchThreadId % uint(SampleCount),
-        dispatchThreadId / uint(SampleCount)
-    );
-
-    // Sample coordinates on a normalized square
-    float2 pos = kernelCoords / (SampleCount - 1.0).xx;
-
     // Grab the sample (range [-1,1])
-    float2 smp = GetSample(pos);
+    float2 smp = GetSample(dispatchThreadId, SampleCount*SampleCount);
 
     // Pack two fp16 in a single uint, we don't need full fp32 precision
     _BokehKernel[dispatchThreadId] = PackKernelCoord(smp);

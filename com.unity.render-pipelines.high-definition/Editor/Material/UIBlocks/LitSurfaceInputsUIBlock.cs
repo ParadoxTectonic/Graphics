@@ -11,7 +11,7 @@ using static UnityEngine.Rendering.HighDefinition.HDMaterialProperties;
 namespace UnityEditor.Rendering.HighDefinition
 {
     // This block is shared for Lit and Layered surface inputs + tesselation variants
-    class LitSurfaceInputsUIBlock : MaterialUIBlock
+    public class LitSurfaceInputsUIBlock : MaterialUIBlock
     {
         public enum Features
         {
@@ -421,16 +421,18 @@ namespace UnityEditor.Rendering.HighDefinition
             if ((NormalMapSpace)normalMapSpace[m_LayerIndex].floatValue == NormalMapSpace.TangentSpace)
             {
                 materialEditor.TexturePropertySingleLine(Styles.normalMapText, normalMap[m_LayerIndex], normalScale[m_LayerIndex]);
-                materialEditor.TexturePropertySingleLine(Styles.bentNormalMapText, bentNormalMap[m_LayerIndex]);
+                if (bentNormalMap[m_LayerIndex] != null)
+                    materialEditor.TexturePropertySingleLine(Styles.bentNormalMapText, bentNormalMap[m_LayerIndex]);
             }
             else
             {
                 // No scaling in object space
                 materialEditor.TexturePropertySingleLine(Styles.normalMapOSText, normalMapOS[m_LayerIndex]);
-                materialEditor.TexturePropertySingleLine(Styles.bentNormalMapOSText, bentNormalMapOS[m_LayerIndex]);
+                if (bentNormalMapOS[m_LayerIndex] != null)
+                    materialEditor.TexturePropertySingleLine(Styles.bentNormalMapOSText, bentNormalMapOS[m_LayerIndex]);
             }
 
-            DisplacementMode displaceMode = (DisplacementMode)displacementMode.floatValue;
+            DisplacementMode displaceMode = displacementMode == null ? DisplacementMode.None : (DisplacementMode)displacementMode.floatValue;
             if (displaceMode != DisplacementMode.None || (m_Features & Features.HeightMap) != 0)
             {
                 EditorGUI.BeginChangeCheck();

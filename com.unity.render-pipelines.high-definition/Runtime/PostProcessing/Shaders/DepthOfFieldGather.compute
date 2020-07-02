@@ -2,7 +2,7 @@
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
 #include "DepthOfFieldCommon.hlsl"
 
-#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+#pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
 #pragma kernel KMainFar           MAIN=KMainFar         FAR
 #pragma kernel KMainFarTiles      MAIN=KMainFarTiles    FAR USE_TILES
@@ -98,7 +98,9 @@ void MAIN(uint3 dispatchThreadId : SV_DispatchThreadID)
 #if NEAR
     float mip = 0.0;
 #else
-    float mip = min(kMaxMips, (1.0 / (SampleCount - 1.5)) * samp0CoC * Radius);
+    //float mip = min(kMaxMips, (1.0 / (SampleCount - 1.5)) * samp0CoC * Radius);
+    // Jay 2020/04/14 - there's just nothing right about the computation above, which produces very uneven and unpredictable results across quarter/half/full res
+    float mip = clamp(0.5 + log2(samp0CoC * Radius / SampleCount), 0, kMaxMips);
 #endif
 
     // Avoid bleeding with the RTHandle autosize system
@@ -132,7 +134,11 @@ void MAIN(uint3 dispatchThreadId : SV_DispatchThreadID)
         #if NEAR
         {
             float weight = saturate(1.0 - (sampCoC - samp0CoC));
-            acc += float4(sampColor.xyz, sampCoC > 0.0) * weight;
+            // Jay 2020/04/13 - replaced "sampCoC > 0.0" below with "0.0"
+            // You'd expect that a step function for blending in the near field would be uniformly too blurry just in front of the focus plane,
+            // and that's exactly what we were seeing with half-res DOF, which made it unusable. So the alpha is computed directly from samp0Coc
+            // instead, outside the loop.
+            acc += float4(sampColor.xyz, 0.0) * weight;
             nearWeightAcc += weight;
 
 #ifdef ENABLE_ALPHA
@@ -153,8 +159,7 @@ void MAIN(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
 
 #if NEAR
-    float alpha = saturate(sqrt((acc.w / TotalSampleCount) * PI));
-    alpha = smoothstep(0.0, 1.0, alpha);
+    float alpha = (saturate(samp0CoC*Radius - 1));
 
     #ifdef ENABLE_ALPHA
         _OutputTexture[COORD_TEXTURE2D_X(posInputs.positionSS)] = float4(acc.xyz, accAlpha) / (nearWeightAcc + 1e-5); // zero-div guard

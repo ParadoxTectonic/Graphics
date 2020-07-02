@@ -9,7 +9,7 @@ using static UnityEngine.Rendering.HighDefinition.HDMaterialProperties;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
-    class TransparencyUIBlock : MaterialUIBlock
+    public class TransparencyUIBlock : MaterialUIBlock
     {
         [Flags]
         public enum Features

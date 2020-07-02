@@ -7,7 +7,7 @@ namespace UnityEngine.Rendering.HighDefinition
     // In the case of transparent we want to use RenderQueue to help with sorting. We define a neutral value for the RenderQueue and priority going from -X to +X
     // going from -X to +X instead of 0 to +X as builtin Unity is better for artists as they can decide late to sort behind or in front of the scene.
 
-    internal static class HDRenderQueue
+    public static class HDRenderQueue
     {
         const int k_TransparentPriorityQueueRange = 100;
 

@@ -20,12 +20,14 @@ namespace UnityEditor.Rendering.HighDefinition
             TemplateName = "HDLitPass.template",
             MaterialName = "Lit",
             ShaderPassName = "SHADERPASS_GBUFFER",
-            ZTestOverride = HDSubShaderUtilities.zTestGBuffer,
+            //ZTestOverride = HDSubShaderUtilities.zTestGBuffer,
+            ZTestOverride = "ZTest LEqual",
+            ZWriteOverride = HDSubShaderUtilities.zWriteOn,
             CullOverride = HDSubShaderUtilities.defaultCullMode,
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 "#pragma multi_compile _ DEBUG_DISPLAY",
                 "#pragma multi_compile _ LIGHTMAP_ON",
                 "#pragma multi_compile _ DIRLIGHTMAP_COMBINED",
@@ -94,8 +96,8 @@ namespace UnityEditor.Rendering.HighDefinition
                 // This remove is required otherwise the code generate several time the define...
                 pass.ExtraDefines.Remove("#ifndef DEBUG_DISPLAY\n#define SHADERPASS_GBUFFER_BYPASS_ALPHA_TEST\n#endif");
 
-                if (masterNode.alphaTest.isOn)
-                    pass.ExtraDefines.Add("#ifndef DEBUG_DISPLAY\n#define SHADERPASS_GBUFFER_BYPASS_ALPHA_TEST\n#endif");
+                //if (masterNode.alphaTest.isOn)
+                //    pass.ExtraDefines.Add("#ifndef DEBUG_DISPLAY\n#define SHADERPASS_GBUFFER_BYPASS_ALPHA_TEST\n#endif");
             }
         };
 
@@ -114,7 +116,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },
             RequiredFields = new List<string>()
@@ -174,7 +176,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },
             Includes = new List<string>()
@@ -208,7 +210,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 "#define SCENESELECTIONPASS",
                 "#pragma editor_sync_compilation",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
@@ -357,7 +359,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },
             Includes = new List<string>()
@@ -424,7 +426,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 "#define CUTOFF_TRANSPARENT_DEPTH_PREPASS",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },
@@ -530,7 +532,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },
             RequiredFields = new List<string>()
@@ -611,7 +613,7 @@ namespace UnityEditor.Rendering.HighDefinition
             ShaderStages = HDSubShaderUtilities.s_ShaderStagesRasterization,
             ExtraDefines = new List<string>()
             {
-                "#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch",
+                "#pragma only_renderers d3d11 playstation xboxone vulkan metal switch",
                 "#define CUTOFF_TRANSPARENT_DEPTH_POSTPASS",
                 DefineRaytracingKeyword(RayTracingNode.RaytracingVariant.High),
             },

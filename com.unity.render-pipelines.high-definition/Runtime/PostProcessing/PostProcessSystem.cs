@@ -1108,8 +1108,11 @@ namespace UnityEngine.Rendering.HighDefinition
                     float P = m_DepthOfField.focusDistance.value;
                     float maxCoC = (A * F) / Mathf.Max((P - F), 1e-6f);
 
+                    float invHalfTanFOV = -camera.mainViewConstants.projMatrix[1, 1];
+                    float tiltedTan = Mathf.Tan(m_DepthOfField.focusTilt.value*Mathf.Deg2Rad) / invHalfTanFOV;
+
                     kernel = cs.FindKernel("KMainPhysical");
-                    cmd.SetComputeVectorParam(cs, HDShaderIDs._Params, new Vector4(P, maxCoC, 0f, 0f));
+                    cmd.SetComputeVectorParam(cs, HDShaderIDs._Params, new Vector4(P, maxCoC, 2.0f*tiltedTan / camera.actualHeight, -tiltedTan));
                 }
                 else // DepthOfFieldMode.Manual
                 {

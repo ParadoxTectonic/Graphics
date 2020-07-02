@@ -11,6 +11,7 @@ namespace UnityEditor.Rendering.HighDefinition
 
         // Physical mode
         SerializedDataParameter m_FocusDistance;
+        SerializedDataParameter m_FocusTilt;
 
         // Manual mode
         SerializedDataParameter m_NearFocusStart;
@@ -39,6 +40,7 @@ namespace UnityEditor.Rendering.HighDefinition
             m_FocusMode = Unpack(o.Find(x => x.focusMode));
 
             m_FocusDistance = Unpack(o.Find(x => x.focusDistance));
+            m_FocusTilt = Unpack(o.Find(x => x.focusTilt));
 
             m_NearFocusStart = Unpack(o.Find(x => x.nearFocusStart));
             m_NearFocusEnd = Unpack(o.Find(x => x.nearFocusEnd));
@@ -69,6 +71,7 @@ namespace UnityEditor.Rendering.HighDefinition
             if (mode == (int)DepthOfFieldMode.UsePhysicalCamera)
             {
                 PropertyField(m_FocusDistance);
+                PropertyField(m_FocusTilt);
 
                 if (advanced)
                 {

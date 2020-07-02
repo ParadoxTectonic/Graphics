@@ -1102,7 +1102,11 @@ PreLightData GetPreLightData(float3 V, PositionInputs posInput, inout BSDFData b
     }
 
     GetLocalVisibility(posInput.positionSS, preLightData.localVisibility);
-    preLightData.cosWeightedLocalVisibility = ModulateLocalVisibilityWithClampedCosine(preLightData.localVisibility, bsdfData.normalWS);
+    preLightData.localVisibility = RotateLocalVisibility(preLightData.orthoBasisViewNormal, preLightData.localVisibility);
+    preLightData.cosWeightedLocalVisibility = ModulateClampedCosineZH(preLightData.localVisibility);
+    preLightData.localVisibility = ModulateClampedHemisphereZH(preLightData.localVisibility);
+    preLightData.cosWeightedLocalVisibility = RotateLocalVisibility(transpose(preLightData.orthoBasisViewNormal), preLightData.cosWeightedLocalVisibility);
+    preLightData.localVisibility = RotateLocalVisibility(transpose(preLightData.orthoBasisViewNormal), preLightData.localVisibility);
 
     // refraction (forward only)
 #if HAS_REFRACTION
@@ -1606,6 +1610,9 @@ DirectLighting EvaluateBSDF_Rect(   LightLoopContext lightLoopContext,
             lightVerts[2] = lightData.positionRWS + lightData.right *  halfWidth + lightData.up *  halfHeight; // UR
             lightVerts[3] = lightData.positionRWS + lightData.right *  halfWidth + lightData.up * -halfHeight; // LR
 
+            float specularVisibility, diffuseVisibility;
+            EvaluateLocalVisibilityRect(preLightData.localVisibility, preLightData.cosWeightedLocalVisibility, lightVerts, preLightData.orthoBasisViewNormal[2], specularVisibility, diffuseVisibility);
+
             // Rotate the endpoints into the local coordinate system.
             lightVerts = mul(lightVerts, transpose(preLightData.orthoBasisViewNormal));
 
@@ -1616,17 +1623,14 @@ DirectLighting EvaluateBSDF_Rect(   LightLoopContext lightLoopContext,
             float4x3 LD = mul(lightVerts, preLightData.ltcTransformDiffuse);
             ltcValue  = PolygonIrradiance(LD);
 
-            {
-                float3 formFactorD = PolygonFormFactor(LD);
-                float3 L = normalize(mul(formFactorD, preLightData.orthoBasisViewNormal));
-                ltcValue *= EvaluateLocalVisibilityCosine(preLightData.localVisibility, L);
+            ltcValue *= diffuseVisibility;
 
-                // Only apply cookie if there is one
-                if ( lightData.cookieMode != COOKIEMODE_NONE )
-                {
-                    // Compute the cookie data for the diffuse term
-                    ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LD, formFactorD);
-                }
+            // Only apply cookie if there is one
+            if ( lightData.cookieMode != COOKIEMODE_NONE )
+            {
+                // Compute the cookie data for the diffuse term
+                float3 formFactorD = PolygonFormFactor(LD);
+                ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LD, formFactorD);
             }
 
             // We don't multiply by 'bsdfData.diffuseColor' here. It's done only once in PostEvaluateBSDF().
@@ -1670,17 +1674,14 @@ DirectLighting EvaluateBSDF_Rect(   LightLoopContext lightLoopContext,
             ltcValue  = PolygonIrradiance(LS);
             ltcValue *= lightData.specularDimmer;
 
-            {
-                float3 formFactorS = PolygonFormFactor(LS);
-                float3 L = mul(DirectionToAreaLight(LS, formFactorS, lightVerts), preLightData.orthoBasisViewNormal);
-                ltcValue *= EvaluateLocalVisibilityDirac(preLightData.localVisibility, L);
+            ltcValue *= specularVisibility;
 
-                // Only apply cookie if there is one
-                if ( lightData.cookieMode != COOKIEMODE_NONE)
-                {
-                    // Compute the cookie data for the specular term
-                    ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LS, formFactorS);
-                }
+            // Only apply cookie if there is one
+            if ( lightData.cookieMode != COOKIEMODE_NONE)
+            {
+                // Compute the cookie data for the specular term
+                float3 formFactorS = PolygonFormFactor(LS);
+                ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LS, formFactorS);
             }
 
             // We need to multiply by the magnitude of the integral of the BRDF
@@ -1695,18 +1696,16 @@ DirectLighting EvaluateBSDF_Rect(   LightLoopContext lightLoopContext,
                 ltcValue = PolygonIrradiance(LSCC);
                 ltcValue *= lightData.specularDimmer;
 
-                {
-                    float3 formFactorS = PolygonFormFactor(LSCC);
-                    float3 L = mul(DirectionToAreaLight(LSCC, formFactorS, lightVerts), preLightData.orthoBasisViewNormal);
-                    ltcValue *= EvaluateLocalVisibilityDirac(preLightData.localVisibility, L);
+                ltcValue *= specularVisibility;
 
-                    // Only apply cookie if there is one
-                    if ( lightData.cookieMode != COOKIEMODE_NONE )
-                    {
-                        // Compute the cookie data for the specular term
-                        ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LSCC, formFactorS);
-                    }
+                // Only apply cookie if there is one
+                if ( lightData.cookieMode != COOKIEMODE_NONE )
+                {
+                    // Compute the cookie data for the specular term
+                    float3 formFactorS = PolygonFormFactor(LSCC);
+                    ltcValue *= SampleAreaLightCookie(lightData.cookieScaleOffset, LSCC, formFactorS);
                 }
+
                 // For clear coat we don't fetch specularFGD we can use directly the perfect fresnel coatIblF
                 lighting.diffuse *= (1.0 - preLightData.coatIblF);
                 lighting.specular *= (1.0 - preLightData.coatIblF);
@@ -1893,6 +1892,10 @@ IndirectLighting EvaluateBSDF_ScreenspaceRefraction(LightLoopContext lightLoopCo
 
 float3 EvalEnvIrradiance(LocalVisibility visibility, float3 backNorm, float3 transmittance, int index)
 {
+    // tedh: 5/22/2020 - Reflection Probes in GameCore don't work properly for now, so adding this until it is fixed
+#if defined(SHADER_API_GAMECORE)
+    return 0.0f;
+#else
     // note, assuming pure cosine lobe for backside visibility - there are issues with shading normal not always being the front-facing normal of 2-sided transmissives, so backNorm is sometimes frontNorm
     float backHarmonics0 = 0.282095;
     float4 backHarmonics1 = float4(0.325735 * backNorm.yzx, 0.);// 0.273137 * backNorm.x * backNorm.y);
@@ -1918,6 +1921,7 @@ float3 EvalEnvIrradiance(LocalVisibility visibility, float3 backNorm, float3 tra
     L += LOAD_TEXTURE2D(_EnvSphericalHarmonicsTexture, int2(0, index * 3 + 2)).rgb * lerp(visibility.harmonics5.www, backHarmonics5.www, transmittance * 0.5);
 
     return max(L, 0);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2034,8 +2038,7 @@ IndirectLighting EvaluateBSDF_Env(  LightLoopContext lightLoopContext,
             }
 
             // only evaluating this once for R, since coatR and R aren't going to diverge enough to matter for this
-            float adjustedVisibility = EstimateSpecularVisibilityCorrection(preLightData.localVisibility, normalize(R), preLightData.iblPerceptualRoughness);// EvaluateLocalVisibilityDirac(preLightData.localVisibility, R);
-            //adjustedVisibility = saturate((adjustedVisibility - 0.5) * rcp(preLightData.iblPerceptualRoughness));
+            float adjustedVisibility = EstimateSpecularVisibilityCorrection(preLightData.localVisibility, normalize(R), preLightData.iblPerceptualRoughness);
             envLighting *= adjustedVisibility;
         }
         else

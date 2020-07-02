@@ -70,6 +70,12 @@ namespace UnityEngine.Rendering.HighDefinition
         [Tooltip("Sets the distance to the focus point from the Camera.")]
         public MinFloatParameter focusDistance = new MinFloatParameter(10f, 0.1f);
 
+        /// <summary>
+        /// Sets the tilt of the focus plane in degrees.
+        /// </summary>
+        [Tooltip("Sets the tilt of the focus plane in degrees.")]
+        public ClampedFloatParameter focusTilt = new ClampedFloatParameter(0f, -90f, 90f);
+
         // -------------------------------------------
         // Manual settings
         // Note: because they can't mathematically be mapped to physical settings, interpolating

@@ -10,7 +10,7 @@
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightLoop.cs.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightCullUtils.hlsl"
 
-#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+#pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
 uniform int g_isOrthographic;
 uniform int g_iNrVisibLights;
@@ -98,8 +98,8 @@ void SCRAABBGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
             for(int k=0; k<4; k++)
             {
                 float fW = vPnts[k].w;
-                float fS = fW<0 ? -1 : 1;
-                float fWabs = fW<0 ? (-fW) : fW;
+                float fS = fW<0.0f ? -1.0f : 1.0f;
+                float fWabs = fW<0.0f ? (-fW) : fW;
                 fW = fS * (fWabs<FLT_EPS ? FLT_EPS : fWabs);
                 float3 vP = float3(vPnts[k].x/fW, vPnts[k].y/fW, vPnts[k].z/fW);
                 if(k==0) { vMin=vP; vMax=vP; }
@@ -455,7 +455,7 @@ unsigned int GetClip(const float4 P)
 
 float4 GenNewVert(const float4 vVisib, const float4 vInvisib, const int p)
 {
-    const float fS = p==4 ? 0 : ((p&1)==0 ? -1 : 1);
+    const float fS = p==4 ? 0.0f : ((p&1)==0 ? -1.0f : 1.0f);
     const int index = ((uint) p)/2;
     float x1 = index==0 ? vVisib.x : (index==1 ? vVisib.y : vVisib.z);
     float x0 = index==0 ? vInvisib.x : (index==1 ? vInvisib.y : vInvisib.z);

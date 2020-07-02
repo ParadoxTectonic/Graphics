@@ -22,11 +22,11 @@
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightingConvexHullUtils.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightCullUtils.hlsl"
 
-#if !defined(SHADER_API_XBOXONE) && !defined(SHADER_API_PSSL) && !defined(SHADER_API_SWITCH)
+#if !defined(SHADER_API_XBOXONE) && !defined(SHADER_API_PSSL)  && !defined(SHADER_API_SWITCH)
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/SortingComputeUtils.hlsl"
 #endif
 
-#pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+#pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
 //#define EXACT_EDGE_TESTS
 #define PERFORM_SPHERICAL_INTERSECTION_TESTS
@@ -72,6 +72,7 @@ StructuredBuffer<uint> g_vBigTileLightList : register( t4 );        // don't sup
 #else
 #define NR_THREADS              64                                  // default to 64 threads per group on other platforms..
 #endif
+#define USE_BARRIERS ((NR_THREADS > PLATFORM_LANE_COUNT) || SHADER_API_GAMECORE)
 
 RWStructuredBuffer<uint> g_vLayeredLightList : register( u0 );          // don't support RWBuffer yet in unity
 RWStructuredBuffer<uint> g_LayeredOffset : register( u1 );              // don't support RWBuffer yet in unity
@@ -236,7 +237,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
 #endif
     }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync(); 
 #endif
 
@@ -280,7 +281,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
     InterlockedMax(ldsZMax, asuint(linMaDist) );
 
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
     linMaDist = asfloat(ldsZMax);
@@ -321,7 +322,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
         }
     }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
 
@@ -345,7 +346,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
 #endif
 
     // sort lights (gives a more efficient execution in both deferred and tiled forward lighting).
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     SORTLIST(coarseList, iNrCoarseLights, MAX_NR_COARSE_ENTRIES, t, NR_THREADS);
 #endif
 
@@ -365,7 +366,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
         }
     }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
 
@@ -412,7 +413,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
         int m = i&3;
         if(i<24) lightPlanes[6*m+p] = FetchPlane(min(iNrCoarseLights-1,ll+m), p, eyeIndex);
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
         GroupMemoryBarrierWithGroupSync();
 #endif
 
@@ -427,7 +428,7 @@ void LIGHTLISTGEN(uint threadID : SV_GroupIndex, uint3 u3GroupID : SV_GroupID)
             }
         }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
         GroupMemoryBarrierWithGroupSync();
 #endif
     }
@@ -492,7 +493,7 @@ int SphericalIntersectionTests(uint threadID, int iNrCoarseLights, float2 screen
             coarseList[l]=UINT_MAX;
     }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
 
@@ -508,7 +509,7 @@ int SphericalIntersectionTests(uint threadID, int iNrCoarseLights, float2 screen
         lightOffsSph = offs;
     }
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
 
@@ -564,7 +565,7 @@ int CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 viTilLL, uint
     {
         if(threadID==0) ldsIsLightInvisible=0;
 
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
         GroupMemoryBarrierWithGroupSync();
 #endif
         const int lightCullIndex = GenerateLightCullDataIndex(coarseList[l], g_iNrVisibLights, eyeIndex);
@@ -618,7 +619,7 @@ int CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 viTilLL, uint
                 if(bFoundSepPlane) InterlockedOr(ldsIsLightInvisible, 1);
             }
         }
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
         GroupMemoryBarrierWithGroupSync();
 #endif
         if(threadID==0 && ldsIsLightInvisible==0)
@@ -626,7 +627,7 @@ int CullByExactEdgeTests(uint threadID, int iNrCoarseLights, uint2 viTilLL, uint
             coarseList[lightOffs2++] = coarseList[l];
         }
     }
-#if NR_THREADS > PLATFORM_LANE_COUNT
+#if USE_BARRIERS
     GroupMemoryBarrierWithGroupSync();
 #endif
     return lightOffs2;

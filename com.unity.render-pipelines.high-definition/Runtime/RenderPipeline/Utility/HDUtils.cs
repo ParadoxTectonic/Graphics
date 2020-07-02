@@ -538,8 +538,15 @@ namespace UnityEngine.Rendering.HighDefinition
             return (graphicDevice == GraphicsDeviceType.Direct3D11 ||
                     graphicDevice == GraphicsDeviceType.Direct3D12 ||
                     graphicDevice == GraphicsDeviceType.PlayStation4 ||
+#if UNITY_PS5
+                    graphicDevice == GraphicsDeviceType.PlayStation5 ||
+#endif
                     graphicDevice == GraphicsDeviceType.XboxOne ||
                     graphicDevice == GraphicsDeviceType.XboxOneD3D12 ||
+#if UNITY_GAMECORE
+                    graphicDevice == GraphicsDeviceType.GameCoreXboxOne ||
+                    graphicDevice == GraphicsDeviceType.GameCoreScarlett ||
+#endif
                     graphicDevice == GraphicsDeviceType.Metal ||
                     graphicDevice == GraphicsDeviceType.Vulkan
                     // Switch isn't supported currently (19.3)
@@ -580,7 +587,14 @@ namespace UnityEngine.Rendering.HighDefinition
                     buildTarget == UnityEditor.BuildTarget.StandaloneOSX ||
                     buildTarget == UnityEditor.BuildTarget.WSAPlayer ||
                     buildTarget == UnityEditor.BuildTarget.XboxOne ||
+#if UNITY_GAMECORE
+                    buildTarget == UnityEditor.BuildTarget.GameCoreXboxOne ||
+                    buildTarget == UnityEditor.BuildTarget.GameCoreScarlett ||
+#endif
                     buildTarget == UnityEditor.BuildTarget.PS4 ||
+#if UNITY_PS5
+                    buildTarget == UnityEditor.BuildTarget.PS5 ||
+#endif
                     buildTarget == UnityEditor.BuildTarget.iOS ||
                     buildTarget == UnityEditor.BuildTarget.Switch);
         }

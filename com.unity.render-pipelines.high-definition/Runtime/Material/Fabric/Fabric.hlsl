@@ -16,6 +16,7 @@
 
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/LTCAreaLight/LTCAreaLight.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/PreIntegratedFGD/PreIntegratedFGD.hlsl"
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialEvaluation.hlsl"
 
 // #define FABRIC_DISPLAY_REFERENCE_IBL
 
@@ -258,6 +259,9 @@ struct PreLightData
 
     float3 specularFGD;              // Store preintegrated BSDF for both specular and diffuse
     float  diffuseFGD;
+
+    LocalVisibility localVisibility;
+    LocalVisibility cosWeightedLocalVisibility;
 };
 
 //
@@ -306,6 +310,9 @@ PreLightData GetPreLightData(float3 V, PositionInputs posInput, inout BSDFData b
     }
 
     preLightData.iblR = reflect(-V, iblN);
+
+    GetLocalVisibility(posInput.positionSS, preLightData.localVisibility);
+    preLightData.cosWeightedLocalVisibility = ModulateLocalVisibilityWithClampedCosine(preLightData.localVisibility, bsdfData.normalWS);
 
     return preLightData;
 }
@@ -462,7 +469,6 @@ CBSDF EvaluateBSDF(float3 V, float3 L, PreLightData preLightData, BSDFData bsdfD
 //-----------------------------------------------------------------------------
 
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightEvaluation.hlsl"
-#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/MaterialEvaluation.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/SurfaceShading.hlsl"
 
 //-----------------------------------------------------------------------------
@@ -588,7 +594,8 @@ IndirectLighting EvaluateBSDF_Env(  LightLoopContext lightLoopContext,
                                     float3 V, PositionInputs posInput,
                                     PreLightData preLightData, EnvLightData lightData, BSDFData bsdfData,
                                     int influenceShapeType, int GPUImageBasedLightingType,
-                                    inout float hierarchyWeight)
+                                    inout float hierarchyWeight,
+                                    inout float diffuseHierarchyWeight)
 {
     IndirectLighting lighting;
     ZERO_INITIALIZE(IndirectLighting, lighting);
@@ -614,6 +621,7 @@ IndirectLighting EvaluateBSDF_Env(  LightLoopContext lightLoopContext,
 
     // Note: using influenceShapeType and projectionShapeType instead of (lightData|proxyData).shapeType allow to make compiler optimization in case the type is know (like for sky)
     EvaluateLight_EnvIntersection(positionWS, bsdfData.normalWS, lightData, influenceShapeType, R, weight);
+    float diffuseWeight = weight;
 
     float iblMipLevel;
     // TODO: We need to match the PerceptualRoughnessToMipmapLevel formula for planar, so we don't do this test (which is specific to our current lightloop)
@@ -640,10 +648,16 @@ IndirectLighting EvaluateBSDF_Env(  LightLoopContext lightLoopContext,
 
     envLighting = preLightData.specularFGD * preLD.rgb;
 
+    float adjustedVisibility = EstimateSpecularVisibilityCorrection(preLightData.localVisibility, normalize(R), preLightData.iblPerceptualRoughness);
+    envLighting *= adjustedVisibility;
+
 #endif
     UpdateLightingHierarchyWeights(hierarchyWeight, weight);
     envLighting *= weight * lightData.multiplier;
     lighting.specularReflected = envLighting;
+
+    UpdateLightingHierarchyWeights(diffuseHierarchyWeight, diffuseWeight);
+    lighting.diffuseReflected = diffuseWeight * EvalEnvIrradiance(preLightData.cosWeightedLocalVisibility, -bsdfData.normalWS, bsdfData.transmittance, abs(lightData.envIndex) - 1);
 
     return lighting;
 }

@@ -7,7 +7,7 @@ using static UnityEngine.Rendering.HighDefinition.HDMaterialProperties;
 
 namespace UnityEditor.Rendering.HighDefinition
 {
-    abstract class BaseLitGUI
+    public abstract class BaseLitGUI
     {
         // Properties for Base Lit material keyword setup
         protected const string kDoubleSidedNormalMode = "_DoubleSidedNormalMode";

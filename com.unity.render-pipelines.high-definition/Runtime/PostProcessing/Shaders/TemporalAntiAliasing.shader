@@ -12,7 +12,7 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
         #pragma multi_compile_local _ ORTHOGRAPHIC
         #pragma multi_compile_local _ REDUCED_HISTORY_CONTRIB
         #pragma multi_compile_local _ ENABLE_ALPHA
-        #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+        #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
@@ -23,7 +23,11 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
 
         TEXTURE2D_X(_InputTexture);
         TEXTURE2D_X(_InputHistoryTexture);
+    #if defined(SHADER_API_GAMECORE)
+        RW_TEXTURE2D_X(CTYPE, _OutputHistoryTexture) : register(u1);
+    #else
         RW_TEXTURE2D_X(CTYPE, _OutputHistoryTexture);
+    #endif
 
         struct Attributes
         {
@@ -73,7 +77,7 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
         {
         #if HDR_MAPUNMAP
             float3 y = mul(float3x3(0.25, 0.5, 0.25, -0.25, 0.5, -0.25, 0.5, 0, -0.5), x);  // RGB -> YCoCg
-            y.rgb *= rcp(0.25 + y.r);
+            y.rgb *= rcp(0.5 + y.r);
             return y;
         #else
             return x;
@@ -83,7 +87,7 @@ Shader "Hidden/HDRP/TemporalAntialiasing"
         float3 UnmapColor(float3 x)
         {
         #if HDR_MAPUNMAP
-            x.rgb *= 0.25*rcp(1. - x.r);
+            x.rgb *= 0.5*rcp(1. - x.r);
             return mul(float3x3(1., -1., 1., 1., 1., 0., 1., -1., -1.), x);  // YCoCg -> RGB
         #else
             return x;

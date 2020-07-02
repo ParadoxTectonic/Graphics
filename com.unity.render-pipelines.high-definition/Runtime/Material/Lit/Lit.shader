@@ -348,7 +348,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
             //enable GPU instancing support
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
@@ -379,7 +379,9 @@ Shader "HDRP/Lit"
             Tags { "LightMode" = "GBuffer" } // This will be only for opaque object based on the RenderQueue index
 
             Cull [_CullMode]
-            ZTest [_ZTestGBuffer]
+            //ZTest [_ZTestGBuffer]
+            ZTest LEqual
+            ZWrite On
 
             Stencil
             {
@@ -391,7 +393,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -409,7 +411,7 @@ Shader "HDRP/Lit"
         #ifndef DEBUG_DISPLAY
             // When we have alpha test, we will force a depth prepass so we always bypass the clip instruction in the GBuffer
             // Don't do it with debug display mode as it is possible there is no depth prepass in this case
-            #define SHADERPASS_GBUFFER_BYPASS_ALPHA_TEST
+            //#define SHADERPASS_GBUFFER_BYPASS_ALPHA_TEST
         #endif
 
             #define SHADERPASS SHADERPASS_GBUFFER
@@ -440,7 +442,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -478,7 +480,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -517,7 +519,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -567,7 +569,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -614,7 +616,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -644,7 +646,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -678,7 +680,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -750,7 +752,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing
@@ -816,7 +818,7 @@ Shader "HDRP/Lit"
 
             HLSLPROGRAM
 
-            #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
+            #pragma only_renderers d3d11 playstation xboxone vulkan metal switch
 
             //enable GPU instancing support
             #pragma multi_compile_instancing

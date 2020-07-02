@@ -203,9 +203,17 @@ float ADD_IDX(GetSurfaceData)(FragInputs input, LayerTexCoord layerTexCoord, out
     // We split both call due to trilinear mapping
     detailNormalTS = SAMPLE_UVMAPPING_NORMALMAP_AG(ADD_IDX(_DetailMap), SAMPLER_DETAILMAP_IDX, ADD_IDX(layerTexCoord.details), ADD_IDX(_DetailNormalScale));
 #endif
-    float4 color = SAMPLE_UVMAPPING_TEXTURE2D(ADD_IDX(_BaseColorMap), ADD_ZERO_IDX(sampler_BaseColorMap), ADD_IDX(layerTexCoord.base)).rgba * ADD_IDX(_BaseColor).rgba;
+    float4 color = SAMPLE_UVMAPPING_TEXTURE2D(ADD_IDX(_BaseColorMap), ADD_ZERO_IDX(sampler_BaseColorMap), ADD_IDX(layerTexCoord.base)).rgba;
+
+#ifdef HAVE_SPECIAL_TINT
+    ApplySpecialTint(color, ADD_IDX(_BaseColor).rgba, ADD_IDX(layerTexCoord.base).uv);
+#else
+    color *= ADD_IDX(_BaseColor).rgba;
+#endif
+
     surfaceData.baseColor = color.rgb;
     float alpha = color.a;
+
 #ifdef _DETAIL_MAP_IDX
 	
     // Goal: we want the detail albedo map to be able to darken down to black and brighten up to white the surface albedo.

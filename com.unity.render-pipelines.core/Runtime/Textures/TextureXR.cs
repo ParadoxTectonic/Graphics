@@ -39,8 +39,15 @@ namespace UnityEngine.Rendering
                     case GraphicsDeviceType.Direct3D11:
                     case GraphicsDeviceType.Direct3D12:
                         return SystemInfo.graphicsDeviceType != GraphicsDeviceType.XboxOne;
-
+#if UNITY_GAMECORE
+                    case GraphicsDeviceType.GameCoreScarlett:
+                    case GraphicsDeviceType.GameCoreXboxOne:
+                        return true;
+#endif
                     case GraphicsDeviceType.PlayStation4:
+#if UNITY_PS5
+                    case GraphicsDeviceType.PlayStation5:
+#endif
                         return true;
 
                     case GraphicsDeviceType.Vulkan:

@@ -29,7 +29,7 @@ float3 DirectionToAreaLight(float4x3 L, float3 F, float4x3 Lws)
     float2 uv;
     uv.y = dot(hitPosition, ortho) / dot(ortho, ortho);
     uv.x = (dot(hitPosition, right) - upRightMixing * uv.y) * recSqLengthRight;
-    uv = saturate(uv);
+    //uv = saturate(uv);
 
     return normalize(Lws[0] + uv.x*(Lws[3] - Lws[0]) + uv.y*(Lws[1] - Lws[0]));
 }
@@ -284,9 +284,10 @@ DirectionalShadowType EvaluateShadow_Directional(LightLoopContext lightLoopConte
     {
         shadow = lightLoopContext.shadowValue;
 
-        shadowMask = min(shadowMask, EvaluateLocalVisibilityDirac(localVisibility, -light.forward));
+        // removing local visibility to use contact shadows instead; to reenable, #ifdef below needs to be #if 1
+        //shadowMask = min(shadowMask, EvaluateLocalVisibilityDiracSharp(localVisibility, -light.forward));
 
-    #if 1//def SHADOWS_SHADOWMASK
+    #ifdef SHADOWS_SHADOWMASK
         // TODO: Optimize this code! Currently it is a bit like brute force to get the last transistion and fade to shadow mask, but there is
         // certainly more efficient to do
         // We reuse the transition from the cascade system to fade between shadow mask at max distance

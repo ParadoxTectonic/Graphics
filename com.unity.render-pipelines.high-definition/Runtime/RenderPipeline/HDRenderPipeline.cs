@@ -671,8 +671,10 @@ namespace UnityEngine.Rendering.HighDefinition
                 , enlighten = false
                 , overridesLODBias = true
                 , overridesMaximumLODLevel = true
-#if UNITY_2020_1_OR_NEWER
+#if UNITY_2020_1_OR_NEWER || UNITY_PS5 || UNITY_GAMECORE
                 , terrainDetailUnsupported = true
+#endif
+#if UNITY_2020_1_OR_NEWER && !UNITY_PS5 && !UNITY_GAMECORE
                 , rendererProbes = false
 #endif
             };
@@ -2933,7 +2935,8 @@ namespace UnityEngine.Rendering.HighDefinition
                     bool excludeMotion = fullDeferredPrepass ? objectMotionEnabled : false;
 
                     // First deferred alpha tested materials. Alpha tested object have always a prepass even if enableDepthPrepassWithDeferredRendering is disabled
-                    var partialPrepassRenderQueueRange = new RenderQueueRange { lowerBound = (int)RenderQueue.AlphaTest, upperBound = (int)RenderQueue.GeometryLast - 1 };
+                    //var partialPrepassRenderQueueRange = new RenderQueueRange { lowerBound = (int)RenderQueue.AlphaTest, upperBound = (int)RenderQueue.GeometryLast - 1 };
+                    var partialPrepassRenderQueueRange = new RenderQueueRange { lowerBound = (int)RenderQueue.GeometryLast, upperBound = (int)RenderQueue.GeometryLast - 1 };   // Jay - prepass for alpha test geo is killing us - this range is intended to be empty
 
                     result.hasDepthOnlyPass = true;
 
@@ -3167,7 +3170,11 @@ namespace UnityEngine.Rendering.HighDefinition
             // clear decal property mask buffer
             cmd.SetComputeBufferParam(propertyMaskClearShader, propertyMaskClearShaderKernel, HDShaderIDs._DecalPropertyMaskBuffer, propertyMaskBuffer);
             cmd.DispatchCompute(propertyMaskClearShader, propertyMaskClearShaderKernel, propertyMaskBufferSize / 64, 1, 1);
+#if UNITY_GAMECORE
+            cmd.SetRandomWriteTarget(4, propertyMaskBuffer); // Always bind to UAV4 set in shader
+#else
             cmd.SetRandomWriteTarget(use4RTs ? 4 : 3, propertyMaskBuffer);
+#endif
 
             HDUtils.DrawRendererList(renderContext, cmd, meshDecalsRendererList);
             DecalSystem.instance.RenderIntoDBuffer(cmd);
@@ -4327,7 +4334,11 @@ namespace UnityEngine.Rendering.HighDefinition
                         {
                             // On PS4 we don't have working MRT clear, so need to clear buffers one by one
                             // https://fogbugz.unity3d.com/f/cases/1182018/
-                            if (Application.platform == RuntimePlatform.PS4)
+                            if ((Application.platform == RuntimePlatform.PS4)
+#if UNITY_PS5
+                                || Application.platform == RuntimePlatform.PS5
+#endif
+                                )
                             {
                                 var GBuffers = m_GbufferManager.GetBuffersRTI();
                                 foreach (var gbuffer in GBuffers)

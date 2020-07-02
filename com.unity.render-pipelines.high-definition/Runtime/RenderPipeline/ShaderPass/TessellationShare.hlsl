@@ -1,4 +1,4 @@
-#if defined(SHADER_API_XBOXONE) || defined(SHADER_API_PSSL)
+#if defined(SHADER_API_XBOXONE) || defined(SHADER_API_PSSL) || defined(SHADER_API_GAMECORE) 
 // AMD recommand this value for GCN http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/05/GCNPerformanceTweets.pdf
 #define MAX_TESSELLATION_FACTORS 15.0
 #else
